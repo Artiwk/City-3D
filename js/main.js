@@ -1,10 +1,17 @@
 /* =========================================================
  * ผังเมือง 3D — Three.js City Plan Viewer (plain JS, offline)
- * พื้น/ถนน/แปลงที่ดิน สร้างอัตโนมัติ | อาคารมีหน้าต่าง+ไฟห้อง
+ * เวอร์ชันสมจริง: เท็กซ์เจอร์จริงทั้งเมือง (หญ้า/ยางมะตอย/อิฐ/ปูน),
+ * ทางเท้ายกสูง, มหาสมุทรรอบเมือง, ท้องฟ้า+เมฆ, ลานจอดรถ,
+ * รถหลายแบบ (เก๋ง/แท็กซี่/บัส/ตุ๊กตุ๊ก), ต้นไม้+พุ่มไม้+หิน,
+ * ของบนดาดฟ้า (แอร์/ถังน้ำ/โซลาร์), ป้ายบิลบอร์ด, ป้ายรถเมล์
  * ========================================================= */
 
 (function () {
   'use strict';
+
+  // ============ ตั้งค่าเท็กซ์เจอร์ (เรียกก่อนสร้างวัสดุทั้งหมด) ============
+  // three.js จะ clamp ค่า anisotropy ให้ไม่เกินที่ GPU รองรับเอง
+  if (window.CityTextures) CityTextures.setAniso(8);
 
   // ================= โซนผังเมือง (17 หมวด) =================
   var ZONES = [
@@ -46,6 +53,17 @@
     { zone: 'everyday',    x:  -45, z:  115, w:  60, d:  30 },
   ];
 
+  // บล็อกเติมช่องว่าง (ทำให้เมืองแน่นขึ้น ไม่โล่ง)
+  // ตำแหน่งคำนวณแล้วว่าไม่ทับถนน/ทางเท้า/ทะเลสาบ/บล็อกเดิม
+  var INFILL_BLOCKS = [
+    { zone: 'commerce', x:   66, z:  -25, w: 28, d: 22 },   // ริมทะเลสาบฝั่งตะวันออก
+    { zone: 'food',     x:  -66, z:  -25, w: 28, d: 22 },   // ริมทะเลสาบฝั่งตะวันตก
+    { zone: 'res',      x:   66, z:   25, w: 28, d: 22 },
+    { zone: 'everyday', x:  -66, z:   25, w: 28, d: 22 },
+    { zone: 'edu',      x:   45, z: -111, w: 60, d: 16 },   // แถวอาคารเรียนเหนือถนน ±90
+    { zone: 'res',      x: -130, z:   45, w: 36, d: 60 },   // ชุมชนฝั่งตะวันตก
+  ];
+
   // สิ่งปลูกสร้างจำลองต่อโซน (จาก City.makers ใน city.js)
   var ZONE_MAKERS = {
     res: ['house', 'twinhouse', 'townhouse', 'condo', 'apartment', 'oldcommunity'],
@@ -79,6 +97,8 @@
   var GROUND_SIZE = 500;   // พื้น 500x500 หน่วย
   var FLOOR_H = 3.2;       // ความสูงชั้นละ 3.2 ม.
   var ROAD_W = 16;         // ความกว้างถนนหลัก
+  var SIDEWALK_W = 3.2;    // ความกว้างทางเท้า
+  var SIDEWALK_H = 0.28;   // ความสูงทางเท้ายกพื้น
   var GROUND_H = 26;       // ความหนาของชั้นดินใต้พื้นผิว (เห็นตอนกดมุมต่ำ)
   var BRIDGE_LOW = 4.5;    // ระดับสะพานข้ามทะเลสาบ (แนว x=0)
   var BRIDGE_HIGH = 12;    // ระดับสะพานยกระดับสูง (แนว z=0) ตัดต่างระดับชัดเจน
@@ -95,8 +115,9 @@
   renderer.toneMappingExposure = 1.05;
 
   var scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0xbfd9ea, 500, 1400);
 
-  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 3000);
+  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 4000);
   camera.position.set(280, 240, 280);
 
   var controls = new THREE.OrbitControls(camera, canvas);
@@ -104,8 +125,44 @@
   controls.dampingFactor = 0.06;
   controls.maxPolarAngle = Math.PI / 2.05;
   controls.minDistance = 20;
-  controls.maxDistance = 900;
+  controls.maxDistance = 1100;
   controls.target.set(0, 0, 0);
+
+  // ================= ท้องฟ้า (sky dome) + เมฆ =================
+  var skyDome = new THREE.Mesh(
+    new THREE.SphereGeometry(1800, 32, 18),
+    new THREE.MeshBasicMaterial({ map: CityTextures.skyDome(), side: THREE.BackSide, fog: false })
+  );
+  scene.add(skyDome);
+
+  var cloudGroup = new THREE.Group();
+  (function makeClouds() {
+    var rand = CityTextures.rng(4321);
+    var cv = document.createElement('canvas');
+    cv.width = 128; cv.height = 64;
+    var g = cv.getContext('2d');
+    for (var p = 0; p < 14; p++) {
+      var px = 20 + rand() * 88, py = 24 + rand() * 20, pr = 9 + rand() * 15;
+      var grd = g.createRadialGradient(px, py, 0, px, py, pr);
+      grd.addColorStop(0, 'rgba(255,255,255,0.95)');
+      grd.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grd;
+      g.fillRect(px - pr, py - pr, pr * 2, pr * 2);
+    }
+    var cloudMat = new THREE.MeshBasicMaterial({
+      map: new THREE.CanvasTexture(cv), transparent: true,
+      depthWrite: false, fog: false, side: THREE.DoubleSide, opacity: 0.9,
+    });
+    for (var c = 0; c < 16; c++) {
+      var s = 90 + rand() * 180;
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(s, s * 0.5), cloudMat);
+      m.position.set((rand() - 0.5) * 1700, 190 + rand() * 170, (rand() - 0.5) * 1700);
+      m.rotation.x = -Math.PI / 2;
+      m.rotation.z = rand() * Math.PI;
+      cloudGroup.add(m);
+    }
+  })();
+  scene.add(cloudGroup);
 
   // ================= แสง =================
   var sun = new THREE.DirectionalLight(0xffffff, 1.15);
@@ -133,17 +190,25 @@
     var cv = document.createElement('canvas');
     cv.width = cv.height = S;
     var g = cv.getContext('2d');
-
-    // พื้นฐาน: ดิน/หญ้า
-    g.fillStyle = '#6d8f56';
-    g.fillRect(0, 0, S, S);
-
-    // ความผันผวนของสีหญ้า
     var r = 12345;
     function rnd() { r = (r * 1103515245 + 12345) % 2147483648; return r / 2147483648; }
-    for (var i = 0; i < 900; i++) {
-      g.fillStyle = 'rgba(' + (90 + Math.floor(rnd() * 40)) + ',' + (120 + Math.floor(rnd() * 40)) + ',' + (60 + Math.floor(rnd() * 30)) + ',0.25)';
-      var rr = 20 + rnd() * 90;
+
+    // พื้นฐาน: หาดทรายรอบขอบ → หญ้าด้านใน (เมืองติดทะเล)
+    g.fillStyle = '#cfc09a';
+    g.fillRect(0, 0, S, S);
+    var beachGrd = g.createRadialGradient(S / 2, S / 2, 205 * px, S / 2, S / 2, 252 * px);
+    beachGrd.addColorStop(0, 'rgba(90,125,60,0)');
+    beachGrd.addColorStop(0.45, 'rgba(110,140,66,0.85)');
+    beachGrd.addColorStop(1, 'rgba(118,148,72,1)');
+    g.fillStyle = beachGrd;
+    g.fillRect(0, 0, S, S);
+
+    // หย่อมหญ้าเขียว/แห้ง + คราบดิน ให้ผิวไม่แบน
+    for (var i = 0; i < 1400; i++) {
+      var dry = rnd();
+      var col = dry < 0.3 ? [104, 118, 58] : dry < 0.6 ? [72, 112, 44] : [88, 130, 52];
+      g.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.3)';
+      var rr = 14 + rnd() * 70;
       g.beginPath();
       g.arc(rnd() * S, rnd() * S, rr, 0, Math.PI * 2);
       g.fill();
@@ -158,14 +223,14 @@
       var w = b.w * px, d = b.d * px;
 
       var hex = '#' + ('00000' + zone.color.toString(16)).slice(-6);
-      g.fillStyle = hex + '66'; // โปร่งบนพื้น
+      g.fillStyle = hex + '55'; // โปร่งบนพื้น
       g.fillRect(cx - w / 2, cy - d / 2, w, d);
       g.strokeStyle = hex;
       g.lineWidth = 4;
       g.strokeRect(cx - w / 2, cy - d / 2, w, d);
 
       // เส้นแบ่งแปลงย่อย
-      g.strokeStyle = 'rgba(255,255,255,0.35)';
+      g.strokeStyle = 'rgba(255,255,255,0.3)';
       g.lineWidth = 2;
       var nx = Math.max(2, Math.round(b.w / 30));
       var nz = Math.max(2, Math.round(b.d / 30));
@@ -188,45 +253,76 @@
       }
     });
 
+    // แปลงนาข้าว NE: วาดแถวนาสีสลับ
+    (function riceRows() {
+      var b = { x: 165, z: -165, w: 105, d: 105 };
+      var cx = (b.x + GROUND_SIZE / 2) * px, cy = (b.z + GROUND_SIZE / 2) * px;
+      for (var ry = 0; ry < 12; ry++) {
+        g.fillStyle = ry % 2 ? 'rgba(150,180,80,0.5)' : 'rgba(120,160,60,0.5)';
+        g.fillRect(cx - b.w / 2 * px, cy - b.d / 2 * px + ry * (b.d / 12) * px, b.w * px, (b.d / 12) * px - 2);
+      }
+      // คันนาสีน้ำตาล
+      g.strokeStyle = 'rgba(120,96,60,0.8)';
+      g.lineWidth = 3;
+      for (var k = 0; k <= 4; k++) {
+        g.beginPath();
+        g.moveTo(cx - b.w / 2 * px, cy - b.d / 2 * px + k * (b.d / 4) * px);
+        g.lineTo(cx + b.w / 2 * px, cy - b.d / 2 * px + k * (b.d / 4) * px);
+        g.stroke();
+      }
+    })();
+
     // ===== ถนน: ทางเท้า + ผิวถนน + เส้นเลน =====
     var roadW = ROAD_W * px;
+    var sw = SIDEWALK_W * px;
     var roads = [-90, 0, 90]; // ตำแหน่งกึ่งกลางถนน (เมตร)
     var edge = GROUND_SIZE / 2 - 20;
 
-    // ทางเท้าสีเทาอ่อน (กว้าง 3 ม.) ข้างถนนสายหลัก
-    g.fillStyle = '#98a1a8';
+    // ทางเท้าสีคอนกรีต (กว้าง SIDEWALK_W) ข้างถนนสายหลัก
+    g.fillStyle = '#a8adb2';
     roads.forEach(function (pos) {
       var off = (pos + GROUND_SIZE / 2) * px;
-      g.fillRect(off - (roadW / 2 + 3 * px), 0, 3 * px, S);
-      g.fillRect(off + roadW / 2, 0, 3 * px, S);
-      g.fillRect(0, off - (roadW / 2 + 3 * px), S, 3 * px);
-      g.fillRect(0, off + roadW / 2, S, 3 * px);
+      g.fillRect(off - (roadW / 2 + sw), 0, sw, S);
+      g.fillRect(off + roadW / 2, 0, sw, S);
+      g.fillRect(0, off - (roadW / 2 + sw), S, sw);
+      g.fillRect(0, off + roadW / 2, S, sw);
     });
     // ทางเท้าถนนริมเมือง (ด้านใน)
-    [-edge + 9.5, edge - 9.5].forEach(function (cx) {
-      g.fillRect((cx + GROUND_SIZE / 2) * px - 1.5 * px, 0, 3 * px, S);
+    [-edge + 9.5, edge - 9.5].forEach(function (cx2) {
+      g.fillRect((cx2 + GROUND_SIZE / 2) * px - sw / 2, 0, sw, S);
     });
-    [-edge + 9.5, edge - 9.5].forEach(function (cz) {
-      g.fillRect(0, (cz + GROUND_SIZE / 2) * px - 1.5 * px, S, 3 * px);
+    [-edge + 9.5, edge - 9.5].forEach(function (cz2) {
+      g.fillRect(0, (cz2 + GROUND_SIZE / 2) * px - sw / 2, S, sw);
     });
+    // รอยแตก/คราบบนทางเท้า
+    for (var cr = 0; cr < 500; cr++) {
+      g.fillStyle = 'rgba(0,0,0,' + (0.04 + rnd() * 0.07) + ')';
+      g.fillRect(rnd() * S, rnd() * S, 2 + rnd() * 4, 1 + rnd() * 2);
+    }
 
     // ผิวถนนยางมะตอย (มีจุดเนื้อละเอียด)
     roads.forEach(function (pos) {
       var c = (pos + GROUND_SIZE / 2) * px;
-      g.fillStyle = '#3a3d42';
+      g.fillStyle = '#33363a';
       g.fillRect(c - roadW / 2, 0, roadW, S);
       g.fillRect(0, c - roadW / 2, S, roadW);
-      g.fillStyle = 'rgba(255,255,255,0.045)';
-      for (var i = 0; i < 420; i++) {
+      g.fillStyle = 'rgba(255,255,255,0.05)';
+      for (var i = 0; i < 500; i++) {
         var y = rnd() * S;
         var x = c - roadW / 2 + rnd() * roadW;
         g.fillRect(x, y, 2, 2);
         g.fillRect(y, x, 2, 2);
       }
+      // รอยลื่นจากล้อรถ (สองแนวเลน)
+      g.fillStyle = 'rgba(0,0,0,0.08)';
+      g.fillRect(c - roadW * 0.28, 0, roadW * 0.14, S);
+      g.fillRect(c + roadW * 0.14, 0, roadW * 0.14, S);
+      g.fillRect(0, c - roadW * 0.28, S, roadW * 0.14);
+      g.fillRect(0, c + roadW * 0.14, S, roadW * 0.14);
     });
     // ถนนริมเมือง
     [[-edge, 0], [edge, 0], [0, -edge], [0, edge]].forEach(function (p) {
-      g.fillStyle = '#3a3d42';
+      g.fillStyle = '#33363a';
       g.fillRect((p[0] + GROUND_SIZE / 2) * px - roadW / 2, 0, roadW, S);
       g.fillRect(0, (p[1] + GROUND_SIZE / 2) * px - roadW / 2, S, roadW);
     });
@@ -234,16 +330,36 @@
     // เส้นแบ่งเลน + เส้นขอบถนน
     roads.forEach(function (pos) {
       var c = (pos + GROUND_SIZE / 2) * px;
-      g.fillStyle = 'rgba(255,255,255,0.65)';
+      g.fillStyle = 'rgba(250,245,225,0.75)';
       for (var y = 0; y < S; y += 64) {
         g.fillRect(c - 2.5, y, 5, 28);               // แนวตั้ง
         g.fillRect(y, c - 2.5, 28, 5);               // แนวนอน
       }
-      g.fillStyle = 'rgba(255,255,255,0.25)';
+      g.fillStyle = 'rgba(250,245,225,0.3)';
       g.fillRect(c - roadW / 2, 0, 2, S);
       g.fillRect(c + roadW / 2 - 2, 0, 2, S);
       g.fillRect(0, c - roadW / 2, S, 2);
       g.fillRect(0, c + roadW / 2 - 2, S, 2);
+    });
+
+    // ลานจอดรถ 2 แห่ง (วาดช่องจอด)
+    [[68, 110], [-68, -110]].forEach(function (lot) {
+      var lx = (lot[0] + GROUND_SIZE / 2) * px, lz = (lot[1] + GROUND_SIZE / 2) * px;
+      var lw = 20 * px, ld = 14 * px;
+      g.fillStyle = '#3a3d42';
+      g.fillRect(lx - lw / 2, lz - ld / 2, lw, ld);
+      g.strokeStyle = 'rgba(250,245,225,0.55)';
+      g.lineWidth = 2;
+      for (var s = 0; s <= 8; s++) {
+        g.beginPath();
+        g.moveTo(lx - lw / 2 + s * (lw / 8), lz - ld / 2);
+        g.lineTo(lx - lw / 2 + s * (lw / 8), lz - ld / 2 + 6 * px);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(lx - lw / 2 + s * (lw / 8), lz + ld / 2);
+        g.lineTo(lx - lw / 2 + s * (lw / 8), lz + ld / 2 - 6 * px);
+        g.stroke();
+      }
     });
 
     // ทะเลสาบกลางเมือง
@@ -257,15 +373,6 @@
     g.strokeStyle = '#d9c98a';
     g.lineWidth = 6;
     g.stroke();
-    // ลูกคลื่นในน้ำ
-    g.strokeStyle = 'rgba(255,255,255,0.13)';
-    g.lineWidth = 2;
-    for (var rp = 0; rp < 4; rp++) {
-      var ry = 10 + rp * 8;
-      g.beginPath();
-      g.ellipse(S * 0.5, S * 0.5, ry * px * 1.45, ry * px, 0, 0.25, 1.4);
-      g.stroke();
-    }
 
     // สวนสาธารณะกลางเมือง (อยู่ในช่องระหว่างถนน ไม่ทับถนน)
     var parkCX = 130, parkCZ = 45, parkR = 28;
@@ -297,13 +404,21 @@
     g.stroke();
 
     var tex = new THREE.CanvasTexture(cv);
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    tex.anisotropy = 8;
     return tex;
   }
 
+  // หญ้า texture สำเร็จรูป (ใช้ซ้ำได้ทั้งพื้นและพื้นโซน)
+  var grassTex = CityTextures.get('grass');
+  var groundMap = makeGroundTexture();
+
   var groundMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
-    new THREE.MeshStandardMaterial({ map: makeGroundTexture(), roughness: 0.95, metalness: 0 })
+    new THREE.MeshStandardMaterial({
+      map: groundMap,
+      bumpMap: grassTex.bumpMap, bumpScale: 0.25,
+      roughness: 0.95, metalness: 0,
+    })
   );
   groundMesh.rotation.x = -Math.PI / 2;
   groundMesh.receiveShadow = true;
@@ -352,7 +467,7 @@
     var tex = new THREE.CanvasTexture(cv);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(6, 1);
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    tex.anisotropy = 8;
     return tex;
   }
 
@@ -363,6 +478,84 @@
   groundBase.position.y = -(GROUND_H / 2 + 0.06);
   groundBase.receiveShadow = true;
   scene.add(groundBase);
+
+  // ================= ผิวน้ำทะเลสาบ (นูนคลื่นจริง) =================
+  var waterTexBase = CityTextures.get('water');
+  var lakeMat = new THREE.MeshStandardMaterial({
+    map: waterTexBase.map.clone(),
+    bumpMap: waterTexBase.bumpMap.clone(),
+    bumpScale: 0.4,
+    color: 0xcfe4f0,
+    roughness: 0.25, metalness: 0.1,
+  });
+  lakeMat.map.wrapS = lakeMat.map.wrapT = THREE.RepeatWrapping;
+  lakeMat.map.repeat.set(6, 4);
+  lakeMat.bumpMap.wrapS = lakeMat.bumpMap.wrapT = THREE.RepeatWrapping;
+  lakeMat.bumpMap.repeat.set(6, 4);
+  var lake = new THREE.Mesh(new THREE.CircleGeometry(1, 48), lakeMat);
+  lake.rotation.x = -Math.PI / 2;
+  lake.scale.set(55, 38, 1);
+  lake.position.y = 0.07;
+  scene.add(lake);
+
+  // ================= ทางเท้ายกสูง (คอนกรีต 3 ม. รอบถนนทุกสาย) =================
+  var CityMats = window.City ? City.mats : null;
+  var sidewalkMat = CityMats ? CityMats.concrete : new THREE.MeshStandardMaterial({ color: 0xa8adb2, roughness: 0.95 });
+
+  function sidewalkSlabs() {
+    var grp = new THREE.Group();
+    var roads = [-90, 0, 90];
+    var edge = GROUND_SIZE / 2 - 20;
+    // ช่วงทางเท้า: เว้นช่องตรงแยก (ถนนตัดกันที่ -90/0/90) และห้ามทะเลสาบกลางเมือง
+    var SEGS = [-240, -99.8, -80.2, -9.8, 9.8, 80.2, 99.8, 240];
+    var LAKE_HALF = 40;   // ครึ่งความยาวช่วงที่ทะเลสาบตัดถนนกลาง (น้ำถึง ~55/38 + กันชน)
+
+    function addSlab(x, z, len, along) {
+      if (len < 2) return;   // ชิ้นสั้นเกินไป ข้าม
+      var geo = along === 'z' ? new THREE.BoxGeometry(SIDEWALK_W, SIDEWALK_H, len) : new THREE.BoxGeometry(len, SIDEWALK_H, SIDEWALK_W);
+      var m = new THREE.Mesh(geo, sidewalkMat);
+      m.position.set(x, SIDEWALK_H / 2, z);
+      m.receiveShadow = true;
+      m.castShadow = true;
+      grp.add(m);
+    }
+
+    // ตัดช่วง [a,b] ไม่ให้ทับโซนน้ำ [-LAKE_HALF, LAKE_HALF] (เฉพาะถนนที่ข้ามทะเลสาบ)
+    function clippedSegs(a, b, crossesLake) {
+      if (!crossesLake) return [[a, b]];
+      var out = [];
+      if (a < -LAKE_HALF) out.push([a, -LAKE_HALF]);
+      if (b > LAKE_HALF) out.push([LAKE_HALF, b]);
+      return out;
+    }
+
+    roads.forEach(function (pos) {
+      var crosses = (pos === 0);   // ถนนกลางเมืองสองสายข้ามทะเลสาบ
+      for (var s = 0; s < SEGS.length; s += 2) {
+        var segs2 = clippedSegs(SEGS[s], SEGS[s + 1], crosses);
+        segs2.forEach(function (sg) {
+          var a = sg[0], b = sg[1];
+          var len = b - a;
+          if (len <= 0) return;
+          var mid = (a + b) / 2;
+          // ริมถนนแนว z (วิ่งตามแกน z) + ริมถนนแนว x (วิ่งตามแกน x)
+          addSlab(pos - (ROAD_W / 2 + SIDEWALK_W / 2), mid, len, 'z');
+          addSlab(pos + (ROAD_W / 2 + SIDEWALK_W / 2), mid, len, 'z');
+          addSlab(mid, pos - (ROAD_W / 2 + SIDEWALK_W / 2), len, 'x');
+          addSlab(mid, pos + (ROAD_W / 2 + SIDEWALK_W / 2), len, 'x');
+        });
+      }
+    });
+    // ทางเท้าริมเมือง (ด้านใน) — ไม่ข้ามทะเลสาบ
+    [-edge + 9.5, edge - 9.5].forEach(function (cx) {
+      addSlab(cx, 0, GROUND_SIZE - 60, 'z');
+    });
+    [-edge + 9.5, edge - 9.5].forEach(function (cz) {
+      addSlab(0, cz, GROUND_SIZE - 60, 'x');
+    });
+    scene.add(grp);
+  }
+  sidewalkSlabs();
 
   // ================= อาคาร =================
   var buildingsGroup = new THREE.Group();
@@ -376,6 +569,10 @@
   var landmarkMeshes = [];   // กล่องที่ใช้ raycast คลิกดูชื่ออาคาร
   var treesGroup = new THREE.Group();
   scene.add(treesGroup);
+  var propsGroup = new THREE.Group();   // ของประดับถนน/สวน
+  scene.add(propsGroup);
+  var parkedGroup = new THREE.Group();  // รถจอดริมถนน+ลานจอด
+  scene.add(parkedGroup);
   var curbGroup = new THREE.Group();
   scene.add(curbGroup);
 
@@ -391,7 +588,7 @@
     };
   }
 
-  // สร้าง texture หน้าต่าง (สุ่มไฟติด/ดับ)
+  // สร้าง texture หน้าต่าง (สุ่มไฟติด/ดับ — กลางวันกระจกเข้ม กลางคืนไฟอุ่น)
   function windowTexture(floors, cols) {
     var key = floors + 'x' + cols;
     if (windowTexCache[key]) return windowTexCache[key];
@@ -400,14 +597,19 @@
     var cw = cols * 16, ch = floors * 16;
     cv.width = cw; cv.height = ch;
     var g = cv.getContext('2d');
-    g.fillStyle = '#1c2733'; // กระจกกลางวัน
+    g.fillStyle = '#26313d'; // กระจกสีฟ้าเข้ม (สะท้อนแสง)
     g.fillRect(0, 0, cw, ch);
 
     var rand = seededRandom(floors * 97 + cols * 31 + 7);
     for (var y = 0; y < floors; y++) {
       for (var x = 0; x < cols; x++) {
-        var lit = rand() < 0.42; // 42% ติดไฟ
-        g.fillStyle = lit ? '#ffd98a' : '#31404f';
+        var lit = rand() < 0.5; // 50% ติดไฟ
+        if (lit) {
+          var warm = rand();
+          g.fillStyle = warm < 0.75 ? '#ffd98a' : '#cfe4ff'; // ไฟหลอดอุ่น/ฟ้า
+        } else {
+          g.fillStyle = rand() < 0.5 ? '#31404f' : '#3c4d5e';
+        }
         g.fillRect(x * 16 + 3, y * 16 + 3, 10, 10);
       }
     }
@@ -416,18 +618,21 @@
     return tex;
   }
 
+  // วัสดุปูนฉาบสีตามโซน (มีเท็กซ์เจอร์จริง ไม่ใช่สีแบน)
+  function tintedPlaster(hex) {
+    var m = City.mats.plaster.clone();
+    m.color = new THREE.Color(hex);
+    return m;
+  }
+
   function makeBuilding(x, z, w, d, floors, zone) {
     var bh = floors * FLOOR_H;
     var group = new THREE.Group();
 
-    // ตัวอาคาร
-    var wallColor = new THREE.Color(zone.color).lerp(new THREE.Color(0xdddddd), 0.55);
-    var bodyMat = new THREE.MeshStandardMaterial({
-      color: wallColor,
-      map: City.wallTex || null,
-      roughness: 0.75,
-      metalness: 0.05,
-    });
+    // ตัวอาคาร — ผนังปูนฉาบ/อิฐสุ่มสีอ่อนจากสีโซน (ไม่ใช่สีแบน)
+    var wallColor = new THREE.Color(zone.color).lerp(new THREE.Color(0xe8e6e0), 0.72);
+    var bodyMat = tintedPlaster(wallColor.getHex());
+    bodyMat.roughness = 0.85;
     var body = new THREE.Mesh(new THREE.BoxGeometry(w, bh, d), bodyMat);
     body.position.y = bh / 2;
     body.castShadow = true;
@@ -440,8 +645,8 @@
     var winTexX = windowTexture(floors, cols);
     var winTexZ = windowTexture(floors, rowsZ);
 
-    var winMatX = new THREE.MeshBasicMaterial({ map: winTexX, transparent: true, opacity: 0.9 });
-    var winMatZ = new THREE.MeshBasicMaterial({ map: winTexZ, transparent: true, opacity: 0.9 });
+    var winMatX = new THREE.MeshBasicMaterial({ map: winTexX, transparent: true, opacity: 0.92 });
+    var winMatZ = new THREE.MeshBasicMaterial({ map: winTexZ, transparent: true, opacity: 0.92 });
     windowMats.push(winMatX, winMatZ);
 
     var eps = 0.06;
@@ -453,25 +658,31 @@
     var pz2 = pz1.clone(); pz2.rotation.y = -Math.PI / 2; pz2.position.x = -w / 2 - eps;
     group.add(px1, px2, pz1, pz2);
 
-    // ดาดฟ้า
+    // ดาดฟ้า (คอนกรีต)
     var roof = new THREE.Mesh(
-      new THREE.BoxGeometry(w * 0.92, 0.6, d * 0.92),
-      new THREE.MeshStandardMaterial({ color: 0x555a60, map: City.wallTex || null, roughness: 0.9 })
+      new THREE.BoxGeometry(w * 0.94, 0.5, d * 0.94),
+      City.mats.concrete
     );
-    roof.position.y = bh + 0.3;
+    roof.position.y = bh + 0.25;
     roof.castShadow = true;
     group.add(roof);
 
-    // ถังน้ำบนดาดฟ้า (ถ้าสูงเกิน 4 ชั้น)
-    if (floors >= 4) {
-      var tank = new THREE.Mesh(
-        new THREE.CylinderGeometry(1.1, 1.1, 2, 10),
-        new THREE.MeshStandardMaterial({ color: 0x4a6a8a, roughness: 0.6 })
-      );
-      tank.position.set(w * 0.25, bh + 1.6, -d * 0.25);
-      tank.castShadow = true;
-      group.add(tank);
-    }
+    // ขอบดาดฟ้า (parapet) สี่ด้าน
+    var parapetMat = tintedPlaster(new THREE.Color(wallColor).multiplyScalar(0.85).getHex());
+    var ph = 0.7, pt = 0.28;
+    // สองด้านตามแกน z (ยาวตาม w) + สองด้านตามแกน x (ยาวตาม d)
+    [[0, d * 0.47 - pt / 2], [0, -d * 0.47 + pt / 2],
+     [w * 0.47 - pt / 2, 0], [-w * 0.47 + pt / 2, 0]].forEach(function (pp, i) {
+      var geo = i < 2 ? new THREE.BoxGeometry(w * 0.94, ph, pt) : new THREE.BoxGeometry(pt, ph, d * 0.94);
+      var pm = new THREE.Mesh(geo, parapetMat);
+      pm.position.set(pp[0], bh + 0.25 + ph / 2, pp[1]);
+      pm.castShadow = true;
+      group.add(pm);
+    });
+
+    // ของบนดาดฟ้า: แอร์/ถังน้ำ/เสาอากาศ/โซลาร์
+    var clutterRand = seededRandom(Math.floor(x * 13 + z * 7 + bh));
+    group.add(City.rooftopClutter(w, d, bh + 0.5, clutterRand));
 
     group.position.set(x, 0, z);
     buildingsGroup.add(group);
@@ -516,7 +727,7 @@
   function placeMakers(block, makers, count, minS, maxS, seed, boxes) {
     var rand = seededRandom(seed);
     var placed = 0, guard = 0;
-    while (placed < count && guard < count * 10) {
+    while (placed < count && guard < count * 12) {
       guard++;
       var key = makers[Math.floor(rand() * makers.length)];
       var mk = City.makers[key];
@@ -542,22 +753,24 @@
     }
   }
 
-  // ขอบทางเท้ารอบบล็อกโซนในเมือง (ให้บล็อกดูชัดเจนขึ้น)
+  // ขอบทางเท้ารอบบล็อกโซนในเมือง (คอนกรีตมีเท็กซ์เจอร์)
   function makeCurb(x, z, w, d) {
-    var h = 0.22;
+    var h = 0.24;
     var w2 = w + 3, d2 = d + 3;
-    var m = new THREE.MeshStandardMaterial({ color: 0xcfd4d9, roughness: 0.9 });
+    var m = CityMats ? CityMats.concrete : sidewalkMat;
     var a = new THREE.Mesh(new THREE.BoxGeometry(w2, h, 0.7), m);
     a.position.set(x, h / 2, z - d2 / 2);
     var b = a.clone(); b.position.z = z + d2 / 2;
     var c = new THREE.Mesh(new THREE.BoxGeometry(0.7, h, d2 - 1.4), m);
     c.position.set(x - w2 / 2, h / 2, z);
     var e = c.clone(); e.position.x = x + w2 / 2;
+    [a, b, c, e].forEach(function (p) { p.castShadow = true; p.receiveShadow = true; });
     curbGroup.add(a, b, c, e);
   }
 
   function buildCity() {
-    ZONE_BLOCKS.forEach(function (block, bi) {
+    var allBlocks = ZONE_BLOCKS.concat(INFILL_BLOCKS);
+    allBlocks.forEach(function (block, bi) {
       var zone = zoneById(block.zone);
       var makers = ZONE_MAKERS[block.zone];
       var count = ZONE_COUNTS[block.zone] || 4;
@@ -585,11 +798,24 @@
           makeBuilding(fx, fz, bw, bd, floors, zone);
         }
         // ต้นไม้ในย่านที่อยู่อาศัย
-        for (var t = 0; t < 4; t++) {
+        for (var t = 0; t < 6; t++) {
           var tx = block.x + (rand() - 0.5) * (block.w - 8);
           var tz = block.z + (rand() - 0.5) * (block.d - 8);
           if (overlaps(boxes, tx, tz, 4, 4)) continue;
-          makeTree(tx, tz, 0.7 + rand() * 0.4);
+          boxes.push({ x: tx, z: tz, w: 3, d: 3 });
+          makeTree(tx, tz, 0.7 + rand() * 0.4, rand);
+          if (rand() < 0.6) makeBush(tx + 2.2, tz + 1.4, 0.8 + rand() * 0.5, rand);
+        }
+      }
+      // โซนอื่นก็เติมต้นไม้/พุ่มไม้บ้าง (ยกเว้นเกษตร/อุตสาหกรรม)
+      else if (block.zone !== 'agriculture' && block.zone !== 'industry') {
+        var rand2 = seededRandom(bi * 53 + 11);
+        for (var t2 = 0; t2 < 3; t2++) {
+          var tx2 = block.x + (rand2() - 0.5) * (block.w - 6);
+          var tz2 = block.z + (rand2() - 0.5) * (block.d - 6);
+          if (overlaps(boxes, tx2, tz2, 4, 4)) continue;
+          boxes.push({ x: tx2, z: tz2, w: 3, d: 3 });
+          makeTree(tx2, tz2, 0.6 + rand2() * 0.4, rand2);
         }
       }
 
@@ -597,27 +823,184 @@
       if (!NO_CURB[block.zone]) makeCurb(block.x, block.z, block.w, block.d);
     });
 
-    plantGreenZone();
+    // ของแต่งในสวนสาธารณะกลางเมือง (โซนสีเขียว) รอบจุดกึ่งกลางสวน (130, 45)
+    (function plantGreenZone() {
+      var rand = seededRandom(4242);
+      var items = ZONE_MAKERS.green;
+      var parkX = 130, parkZ = 45;
+      items.forEach(function (key, i) {
+        var mk = City.makers[key];
+        if (!mk) return;
+        var grp = mk.build(rand);
+        var a = -1.2 + i * 1.15;
+        grp.position.set(parkX + Math.cos(a) * 20, 0, parkZ + Math.sin(a) * 20 * 0.7);
+        grp.rotation.y = rand() * Math.PI;
+        landmarksGroup.add(grp);
+        registerLandmark(grp, mk.label, mk.cat, 'green');
+      });
+    })();
+
     buildTransport();
+    buildParkingLots();
+    plantStreetProps();
+    parkCarsAlongStreets();
   }
 
-  // ของแต่งในสวนสาธารณะกลางเมือง (โซนสีเขียว)
-  function plantGreenZone() {
-    var rand = seededRandom(4242);
-    var items = ZONE_MAKERS.green;
-    var parkX = 130, parkZ = 45;
-    items.forEach(function (key, i) {
-      var mk = City.makers[key];
-      if (!mk) return;
-      var grp = mk.build(rand);
-      var a = -1.2 + i * 1.15;
-      grp.position.set(parkX + Math.cos(a) * 20, 0, parkZ + Math.sin(a) * 20 * 0.7);
-      grp.rotation.y = rand() * Math.PI;
-      landmarksGroup.add(grp);
-      registerLandmark(grp, mk.label, mk.cat, 'green');
+  // ================= ลานจอดรถ (มีรถจอดจริง) =================
+  function buildParkingLots() {
+    var lots = [
+      { x: 68, z: 110, w: 20, d: 14 },
+      { x: -68, z: -110, w: 20, d: 14 },
+    ];
+    var rand = seededRandom(31337);
+    lots.forEach(function (lot) {
+      // พื้นลานยางมะตอย
+      var lotMesh = new THREE.Mesh(new THREE.BoxGeometry(lot.w, 0.12, lot.d), City.mats.asphalt);
+      lotMesh.position.set(lot.x, 0.06, lot.z);
+      lotMesh.receiveShadow = true;
+      propsGroup.add(lotMesh);
+      // รถจอดสองแถว
+      for (var row = -1; row <= 1; row += 2) {
+        for (var i = 0; i < 4; i++) {
+          if (rand() < 0.3) continue; // บางช่องว่าง
+          var v = City.makeVehicle(rand() < 0.2 ? 'pickup' : (rand() < 0.5 ? 'sedan' : 'taxi'), rand);
+          v.position.set(lot.x - lot.w / 2 + 2.4 + i * (lot.w / 4.6), 0.1, lot.z + row * (lot.d / 4));
+          v.rotation.y = row > 0 ? 0 : Math.PI;
+          parkedGroup.add(v);
+        }
+      }
     });
   }
 
+  // ================= ของประดับริมถนน/สวน =================
+  function makeBusStop(x, z, ry) {
+    var g = new THREE.Group();
+    var m = CityMats.concrete;
+    [0, 3.4].forEach(function (ox) {
+      var p = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.6, 0.18), m);
+      p.position.set(ox, 1.3, 0);
+      g.add(p);
+    });
+    var roof = new THREE.Mesh(new THREE.BoxGeometry(4, 0.15, 1.6), City.mats.metal);
+    roof.position.set(1.7, 2.65, 0);
+    roof.castShadow = true;
+    g.add(roof);
+    var glass = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.1, 0.08), City.mats.glass);
+    glass.position.set(1.7, 1.7, -0.7);
+    g.add(glass);
+    var bench = new THREE.Mesh(new THREE.BoxGeometry(3, 0.1, 0.4), City.mats.wood);
+    bench.position.set(1.7, 0.75, -0.4);
+    g.add(bench);
+    g.position.set(x, SIDEWALK_H, z);
+    g.rotation.y = ry || 0;
+    propsGroup.add(g);
+  }
+
+  function makeHydrant(x, z) {
+    var g = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.75, 8),
+      new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.5 }));
+    body.position.y = 0.38;
+    var cap = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xc62828, roughness: 0.5 }));
+    cap.position.y = 0.78;
+    g.add(body, cap);
+    g.position.set(x, SIDEWALK_H, z);
+    propsGroup.add(g);
+  }
+
+  function makeBin(x, z) {
+    var g = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 0.8, 10),
+      new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.7, metalness: 0.3 }));
+    body.position.y = 0.4;
+    g.add(body);
+    g.position.set(x, SIDEWALK_H, z);
+    propsGroup.add(g);
+  }
+
+  function plantStreetProps() {
+    var rand = seededRandom(8181);
+    // ป้ายรถเมล์ริมถนนหลัก
+    makeBusStop(22, 11.2, 0);
+    makeBusStop(-22, -11.2, Math.PI);
+    makeBusStop(11.2, -60, Math.PI / 2);
+    makeBusStop(-11.2, 60, -Math.PI / 2);
+    makeBusStop(101.2, 40, 0);
+    makeBusStop(-101.2, -40, Math.PI);
+    // ป้ายบิลบอร์ด
+    var bbSpots = [
+      [-62, 11.8, 0], [62, -11.8, Math.PI], [11.8, -62, Math.PI / 2],
+      [-11.8, 62, -Math.PI / 2], [170, -105, 0.3], [-150, 108, -0.4],
+    ];
+    bbSpots.forEach(function (p) {
+      var bb = City.billboard(rand);
+      bb.position.set(p[0], SIDEWALK_H, p[1]);
+      bb.rotation.y = p[2];
+      propsGroup.add(bb);
+      registerLandmark(bb, 'ป้ายโฆษณา', 'โฆษณา', 'commerce');
+    });
+    // ไฮดรันต์ + ถังขยะ เฉพาะแยกและริมทางเท้า
+    var corners = [[-81, -9], [81, 9], [-9, 81], [9, -81], [-99, 9], [99, -9], [-9, -99], [9, 99]];
+    corners.forEach(function (c, i) {
+      if (i % 2 === 0) makeHydrant(c[0], c[1]); else makeBin(c[0], c[1]);
+    });
+    // หิน + พุ่มไม้รอบสวนกลางและริมทะเลสาบ (เลี่ยงถนน/บล็อกอาคาร)
+    function inAnyBlock(x, z) {
+      var all = ZONE_BLOCKS.concat(INFILL_BLOCKS);
+      for (var i = 0; i < all.length; i++) {
+        var b = all[i];
+        if (Math.abs(x - b.x) < b.w / 2 && Math.abs(z - b.z) < b.d / 2) return true;
+      }
+      return false;
+    }
+    for (var i = 0; i < 30; i++) {
+      var a = rand() * Math.PI * 2;
+      var rr = 58 + rand() * 14;
+      var rx = Math.cos(a) * rr, rz = Math.sin(a) * rr * 1.15;
+      if (Math.abs(rx) < 12 || Math.abs(rz) < 12) continue;
+      if ((Math.abs(rx) > 82 && Math.abs(rx) < 98) || (Math.abs(rz) > 82 && Math.abs(rz) < 98)) continue;
+      if (inAnyBlock(rx, rz)) continue;
+      if (rand() < 0.5) propsGroup.add(place(City.rock(0.6 + rand() * 0.7), rx, rz, rand));
+      else propsGroup.add(place(City.bush(0.8 + rand() * 0.8, rand), rx, rz, rand));
+    }
+    // ม้านั่งเกียจในสวน
+    var bench = City.makers.bench.build(rand);
+    bench.position.set(130, 0, 45);
+    propsGroup.add(bench);
+    registerLandmark(bench, 'ม้านั่ง', 'พื้นที่สีเขียว', 'green');
+
+    function place(obj, x, z, R) {
+      obj.position.set(x, 0, z);
+      obj.rotation.y = R() * Math.PI * 2;
+      return obj;
+    }
+  }
+
+  // ================= รถจอดริมถนน =================
+  function parkCarsAlongStreets() {
+    var rand = seededRandom(2468);
+    var roads = [-90, 0, 90];
+    var types = ['sedan', 'taxi', 'pickup', 'van', 'sedan', 'tuk'];
+    function ok(t) { return Math.abs(t) > 26; }   // เว้นแยก
+    roads.forEach(function (pos) {
+      for (var t = -230; t <= 230; t += 30) {
+        if (!ok(t)) continue;
+        // ริมถนนแนว x=0 ข้ามทะเลสาบ — ไม่จอด (บนสะพาน/ในน้ำ)
+        if (pos === 0 && Math.abs(t) < 62) continue;
+        [[pos + 6.1, t, 'z'], [pos - 6.1, t, 'z'], [t, pos + 6.1, 'x'], [t, pos - 6.1, 'x']].forEach(function (p, idx) {
+          if (rand() < 0.55) return;  // จอดไม่ทุกช่อง ให้เป็นธรรมชาติ
+          // เลี่ยงช่วงทะเลสาบ (ถนนกลางเมืองสองสายข้ามน้ำ)
+          if (pos === 0 && ((p[2] === 'x' && Math.abs(p[0]) < 62) || (p[2] === 'z' && Math.abs(p[1]) < 62))) return;
+          var v = City.makeVehicle(types[Math.floor(rand() * types.length)], rand);
+          v.position.set(p[0], 0, p[1]);
+          // จอดให้ตัวรถขนานถนน (ตัวรถยาวตามแกน Z)
+          v.rotation.y = p[2] === 'z' ? (rand() < 0.5 ? 0 : Math.PI) : (rand() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
+          parkedGroup.add(v);
+        });
+      }
+    });
+  }
   // สะพานข้ามทะเลสาบ + ไฟจราจร + ทางม้าลายที่แยกใกล้ใจกลางเมือง
   function buildTransport() {
     var rand = seededRandom(555);
@@ -653,33 +1036,20 @@
       put('crosswalk', cx + 9.2, cz, Math.PI / 2);
     });
   }
+
   buildCity();
 
   // ================= ต้นไม้ =================
 
-  function makeTree(x, z, scale) {
-    var g = new THREE.Group();
-    var trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.35, 0.5, 3, 6),
-      new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.95 })
-    );
-    trunk.position.y = 1.5;
-    trunk.castShadow = true;
-
-    var leafMat = new THREE.MeshStandardMaterial({ color: 0x3f7d33, roughness: 0.9 });
-    var c1 = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 6), leafMat);
-    c1.position.y = 4.4;
-    c1.castShadow = true;
-    var c2 = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), leafMat);
-    c2.position.set(0.8, 5.6, 0.5);
-    c2.castShadow = true;
-    var c3 = new THREE.Mesh(new THREE.SphereGeometry(1.3, 8, 6), leafMat);
-    c3.position.set(-0.7, 5.2, -0.6);
-    c3.castShadow = true;
-
-    g.add(trunk, c1, c2, c3);
+  function makeTree(x, z, scale, R) {
+    var g = City.tree(scale || 1, R);
     g.position.set(x, 0, z);
-    g.scale.setScalar(scale || 1);
+    treesGroup.add(g);
+  }
+
+  function makeBush(x, z, scale, R) {
+    var g = City.bush(scale || 1, R);
+    g.position.set(x, 0, z);
     treesGroup.add(g);
   }
 
@@ -692,7 +1062,7 @@
     // ต้นไม้ต้องไม่อยู่บนถนน (x=0 / z=0) หรือในบล็อกโซน
     function badSpot(x, z) {
       if (inLake(x, z)) return true;
-      if (Math.abs(x) < 10 || Math.abs(z) < 10) return true;   // ถนนกลางเมือง
+      if (Math.abs(x) < 12 || Math.abs(z) < 12) return true;   // ถนนกลางเมือง+ทางเท้า
       var ax = Math.abs(x), az = Math.abs(z);
       if ((ax > 82 && ax < 98) || (az > 82 && az < 98)) return true;     // ถนนสาย ±90
       if ((ax > 222 && ax < 238) || (az > 222 && az < 238)) return true; // ถนนริม
@@ -700,37 +1070,52 @@
         var b = ZONE_BLOCKS[i];
         if (Math.abs(x - b.x) < b.w / 2 && Math.abs(z - b.z) < b.d / 2) return true;
       }
+      for (var j = 0; j < INFILL_BLOCKS.length; j++) {
+        var b2 = INFILL_BLOCKS[j];
+        if (Math.abs(x - b2.x) < b2.w / 2 && Math.abs(z - b2.z) < b2.d / 2) return true;
+      }
       return false;
     }
     // ต้นไม้ในสวนสาธารณะ (130, 45)
-    for (var i = 0; i < 26; i++) {
+    for (var i = 0; i < 34; i++) {
       var a = rand() * Math.PI * 2;
       var rr = rand() * 26;
       var px = 130 + Math.cos(a) * rr;
       var pz = 45 + Math.sin(a) * rr * 0.75;
       if (badSpot(px, pz)) continue;
-      makeTree(px, pz, 0.8 + rand() * 0.6);
+      makeTree(px, pz, 0.8 + rand() * 0.6, rand);
+      if (rand() < 0.5) makeBush(px + 2, pz + 1.5, 0.7 + rand() * 0.6, rand);
     }
     // ต้นไม้เป็นวงรอบทะเลสาบกลางเมือง (เฉพาะช่องว่างระหว่างบล็อก)
-    for (var k = 0; k < 42; k++) {
+    for (var k = 0; k < 52; k++) {
       var a2 = rand() * Math.PI * 2;
       var rr2 = 60 + rand() * 9;
       var lx = Math.cos(a2) * rr2;
       var lz = Math.sin(a2) * rr2 * 1.15;
       if (badSpot(lx, lz)) continue;
-      makeTree(lx, lz, 0.7 + rand() * 0.5);
+      makeTree(lx, lz, 0.7 + rand() * 0.5, rand);
     }
     // ริมถนน
     var roads = [-90, 0, 90];
     roads.forEach(function (pos) {
-      for (var t = -230; t <= 230; t += 24) {
+      for (var t = -230; t <= 230; t += 22) {
         if (Math.abs(t) < 30 && pos === 0) continue; // เว้นแยกกลาง
-        [[pos + 12, t], [t, pos + 12], [pos - 12, t], [t, pos - 12]].forEach(function (p) {
+        [[pos + 12.4, t], [t, pos + 12.4], [pos - 12.4, t], [t, pos - 12.4]].forEach(function (p) {
           if (badSpot(p[0], p[1])) return;
-          makeTree(p[0], p[1], 0.7 + rand() * 0.4);
+          makeTree(p[0], p[1], 0.7 + rand() * 0.4, rand);
         });
       }
     });
+    // แถวป่ารอบนอกเมือง (ระหว่างเมืองกับหาด) ให้ขอบเมืองไม่โล่ง
+    for (var f = 0; f < 240; f++) {
+      var fa = rand() * Math.PI * 2;
+      var fr = 210 + rand() * 26;
+      var fx2 = Math.cos(fa) * fr;
+      var fz2 = Math.sin(fa) * fr;
+      if (badSpot(fx2, fz2)) continue;
+      if (Math.abs(fx2) > 244 || Math.abs(fz2) > 244) continue; // อย่าล้ำหาดมาก
+      makeTree(fx2, fz2, 0.8 + rand() * 0.8, rand);
+    }
   }
   plantTrees();
 
@@ -745,10 +1130,10 @@
 
   function makeLamp(x, z) {
     var pole = new THREE.Mesh(poleGeo, poleMat);
-    pole.position.set(x, 3.5, z);
+    pole.position.set(x, 3.5 + SIDEWALK_H, z);
     pole.castShadow = true;
     var bulb = new THREE.Mesh(bulbGeo, bulbMat);
-    bulb.position.set(x, 7.2, z);
+    bulb.position.set(x, 7.2 + SIDEWALK_H, z);
     bulb.visible = false; // เปิดตอนกลางคืน
     lampGroup.add(pole, bulb);
     return bulb;
@@ -758,8 +1143,10 @@
   var roadsL = [-90, 0, 90];
   roadsL.forEach(function (pos) {
     for (var t = -230; t <= 230; t += 46) {
-      lampBulbs.push(makeLamp(pos + 9.5, t));
-      lampBulbs.push(makeLamp(t, pos + 9.5));
+      // เสาไฟไม่ปักในน้ำ (ถนนกลางเมืองข้ามทะเลสาบ ให้เว้นช่วงนั้น)
+      if (pos === 0 && Math.abs(t) < 58) continue;
+      lampBulbs.push(makeLamp(pos + 9.6, t));
+      lampBulbs.push(makeLamp(t, pos + 9.6));
     }
   });
 
@@ -768,29 +1155,21 @@
   cornerLight.position.set(0, 9, 0);
   scene.add(cornerLight);
 
-  // ================= รถวิ่งบนถนน =================
+  // ================= รถวิ่งบนถนน (หลายแบบ: เก๋ง/แท็กซี่/บัส/ตุ๊กตุ๊ก...) =================
   var carsGroup = new THREE.Group();
   scene.add(carsGroup);
 
-  var carBodyGeo = new THREE.BoxGeometry(4.2, 1.5, 2);
-  var carTopGeo = new THREE.BoxGeometry(2.4, 1.1, 1.8);
-  var carColors = [0xd94f4f, 0x4f7fd9, 0xe8e8e8, 0x3a3a3a, 0xe8b84f, 0x4fae6e];
-
-  function makeCar(axis, laneOffset, dir, speed, start) {
-    var color = carColors[Math.floor(Math.random() * carColors.length)];
-    var grp = new THREE.Group();
-    var body = new THREE.Mesh(carBodyGeo, new THREE.MeshStandardMaterial({ color: color, roughness: 0.4, metalness: 0.3 }));
-    body.position.y = 0.9;
-    body.castShadow = true;
-    var top = new THREE.Mesh(carTopGeo, new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.2, metalness: 0.4 }));
-    top.position.y = 2;
-    grp.add(body, top);
-
-    var headL = new THREE.Mesh(new THREE.SphereGeometry(0.28, 6, 5), new THREE.MeshBasicMaterial({ color: 0xfff2b0 }));
-    headL.position.set(2.1, 0.9, 0.6);
-    var headR = headL.clone(); headR.position.z = -0.6;
-    grp.add(headL, headR);
-
+  function makeCar(axis, laneOffset, dir, speed, start, R) {
+    var roll = R();
+    var type = 'sedan';
+    if (roll < 0.34) type = 'sedan';
+    else if (roll < 0.48) type = 'taxi';
+    else if (roll < 0.62) type = 'pickup';
+    else if (roll < 0.74) type = 'van';
+    else if (roll < 0.86) type = 'tuk';
+    else if (roll < 0.94) type = 'bus';
+    else type = 'truck';
+    var grp = City.makeVehicle(type, R);
     carsGroup.add(grp);
     return { grp: grp, axis: axis, lane: laneOffset, dir: dir, speed: speed, pos: start, lake: Math.abs(laneOffset) < 8 };
   }
@@ -800,10 +1179,10 @@
   roadsL.forEach(function (pos) {
     // 2 เลนต่อทิศ ต่อถนน
     for (var i = 0; i < 3; i++) {
-      cars.push(makeCar('x', pos + 4, 1, 14 + carRand() * 10, -230 + carRand() * 460));
-      cars.push(makeCar('x', pos - 4, -1, 14 + carRand() * 10, -230 + carRand() * 460));
-      cars.push(makeCar('z', pos + 4, 1, 14 + carRand() * 10, -230 + carRand() * 460));
-      cars.push(makeCar('z', pos - 4, -1, 14 + carRand() * 10, -230 + carRand() * 4));
+      cars.push(makeCar('x', pos + 4, 1, 13 + carRand() * 10, -230 + carRand() * 460, carRand));
+      cars.push(makeCar('x', pos - 4, -1, 13 + carRand() * 10, -230 + carRand() * 460, carRand));
+      cars.push(makeCar('z', pos + 4, 1, 13 + carRand() * 10, -230 + carRand() * 460, carRand));
+      cars.push(makeCar('z', pos - 4, -1, 13 + carRand() * 10, -230 + carRand() * 4, carRand));
     }
   });
 
@@ -825,8 +1204,8 @@
         var surface = a <= 41 ? D : (a >= e ? 0 : D * (e - a) / rampLen);
         c.grp.position.y = surface - 0.15;
       }
-      // หมุนให้หัวรถไปทางทิศทางวิ่ง
-      var yaw = (c.axis === 'x' ? 0 : Math.PI / 2) + (c.dir > 0 ? 0 : Math.PI);
+      // หมุนให้หัวรถไปทางทิศทางวิ่ง (ตัวรถสร้างยาวตามแกน Z)
+      var yaw = (c.axis === 'x' ? Math.PI / 2 : 0) + (c.dir > 0 ? 0 : Math.PI);
       c.grp.rotation.y = yaw;
     });
   }
@@ -881,9 +1260,9 @@
 
   // ================= โหมดแสง =================
   var LIGHT_MODES = {
-    day:    { sky: 0x8fc7ee, fog: [0xbfd9ea, 500, 1400], sunColor: 0xfff4e0, sunI: 1.15, ambI: 0.55, hemiI: 0.6,  sunPos: [200, 300, 140],   lamps: false, windowEmissive: false, starO: 0 },
-    sunset: { sky: 0xe8956a, fog: [0xd98a5f, 420, 1300], sunColor: 0xffb066, sunI: 0.75, ambI: 0.4,  hemiI: 0.35, sunPos: [340, 80, -160],   lamps: true,  windowEmissive: true,  starO: 0.35 },
-    night:  { sky: 0x0b1020, fog: [0x0b1020, 380, 1200], sunColor: 0x8fb0ff, sunI: 0.14, ambI: 0.16, hemiI: 0.1,  sunPos: [-160, 220, -120], lamps: true,  windowEmissive: true,  starO: 0.9 },
+    day:    { sky: 0x8fc7ee, dome: 0xffffff, fog: [0xbfd9ea, 500, 1400], sunColor: 0xfff4e0, sunI: 1.15, ambI: 0.55, hemiI: 0.6,  sunPos: [200, 300, 140],   lamps: false, windowEmissive: false, starO: 0,    cloudO: 0.9 },
+    sunset: { sky: 0xe8956a, dome: 0xffd9b0, fog: [0xd98a5f, 420, 1300], sunColor: 0xffb066, sunI: 0.75, ambI: 0.4,  hemiI: 0.35, sunPos: [340, 80, -160],   lamps: true,  windowEmissive: true,  starO: 0.35, cloudO: 0.7 },
+    night:  { sky: 0x0b1020, dome: 0x24304e, fog: [0x0b1020, 380, 1200], sunColor: 0x8fb0ff, sunI: 0.14, ambI: 0.16, hemiI: 0.1,  sunPos: [-160, 220, -120], lamps: true,  windowEmissive: true,  starO: 0.9,  cloudO: 0.12 },
   };
 
   function setLightMode(mode) {
@@ -891,6 +1270,8 @@
     if (!m) return;
     scene.background = new THREE.Color(m.sky);
     scene.fog = new THREE.Fog(m.fog[0], m.fog[1], m.fog[2]);
+    skyDome.material.color.set(m.dome);
+    cloudGroup.children.forEach(function (c) { c.material.opacity = m.cloudO; });
     sun.color.set(m.sunColor);
     sun.intensity = m.sunI;
     sun.position.set(m.sunPos[0], m.sunPos[1], m.sunPos[2]);
@@ -899,7 +1280,7 @@
     lampGroup.children.forEach(function (c) { if (c.geometry === bulbGeo) c.visible = m.lamps; });
     cornerLight.intensity = m.lamps ? 1.4 : 0;
     stars.material.opacity = m.starO;
-    windowMats.forEach(function (mat) { mat.opacity = m.windowEmissive ? 1 : 0.9; });
+    windowMats.forEach(function (mat) { mat.opacity = m.windowEmissive ? 1 : 0.92; });
   }
   setLightMode('day');
 
@@ -1025,6 +1406,10 @@
     var dt = Math.min(clock.getDelta(), 0.05);
     updateCars(dt);
     updatePlane(dt);
+    // เมฆลอยช้า ๆ + ผิวน้ำไหล
+    cloudGroup.rotation.y += dt * 0.004;
+    lakeMat.map.offset.y -= dt * 0.01;
+    lakeMat.bumpMap.offset.y -= dt * 0.015;
     controls.update();
     renderer.render(scene, camera);
   }

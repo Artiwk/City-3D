@@ -7,108 +7,411 @@
 
   var City = (window.City = { makers: {} });
 
-  // ---------- shared helpers ----------
-  // texture ผนังอาคาร (ลายปูนจาง ๆ) ทำให้อาคารไม่ดูแบน
-  var wallTex = (function () {
-    var cv = document.createElement('canvas');
-    cv.width = 128; cv.height = 128;
-    var g = cv.getContext('2d');
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, 128, 128);
-    var r = 777;
-    function rnd() { r = (r * 1103515245 + 12345) % 2147483648; return r / 2147483648; }
-    for (var i = 0; i < 2400; i++) {
-      var v = 226 + Math.floor(rnd() * 29);
-      g.fillStyle = 'rgba(' + v + ',' + v + ',' + v + ',0.5)';
-      g.fillRect(rnd() * 128, rnd() * 128, 1 + rnd() * 3, 1 + rnd() * 3);
+  // ---------- shared helpers (ใช้เท็กซ์เจอร์จริงจาก textures.js) ----------
+  var TX = window.CityTextures || { ObjMat: function () { return new THREE.MeshStandardMaterial({ color: 0xffffff }); } };
+
+  // วัสดุพื้นฐาน (สร้างครั้งเดียว แชร์ทั้งเมือง — ประหยัด GPU)
+  var plasterMat = TX.ObjMat('plaster', { roughness: 0.9, repX: 2, repY: 2 });
+  var brickMats = [
+    TX.ObjMat('brickRed', { roughness: 0.95, repX: 2, repY: 2 }),
+    TX.ObjMat('brickTan', { roughness: 0.95, repX: 2, repY: 2 }),
+    TX.ObjMat('brickBrown', { roughness: 0.95, repX: 2, repY: 2 }),
+    TX.ObjMat('brickGray', { roughness: 0.95, repX: 2, repY: 2 }),
+  ];
+  var metalMat = TX.ObjMat('metal', { roughness: 0.6, metalness: 0.35, repX: 2, repY: 1 });
+  var roofMats = [
+    TX.ObjMat('roofRed', { roughness: 0.85, repX: 2, repY: 2 }),
+    TX.ObjMat('roofGray', { roughness: 0.85, repX: 2, repY: 2 }),
+    TX.ObjMat('roofGreen', { roughness: 0.85, repX: 2, repY: 2 }),
+  ];
+  var glassMat = TX.ObjMat('glass', { roughness: 0.15, metalness: 0.55 });
+  var woodMat = TX.ObjMat('wood', { roughness: 0.9 });
+  var barkMat = TX.ObjMat('bark', { roughness: 0.95 });
+  var leafMats = [
+    TX.ObjMat('leaves', { roughness: 0.95, color: 0xa8d8a0, transparent: true }),
+    TX.ObjMat('leaves', { roughness: 0.95, color: 0xd8e8b0, transparent: true }),
+    TX.ObjMat('leaves', { roughness: 0.95, color: 0x88c890, transparent: true }),
+  ];
+  var asphaltMat = TX.ObjMat('asphalt', { roughness: 0.92 });
+  var concreteMat = TX.ObjMat('concrete', { roughness: 0.95 });
+  var solarMat = TX.ObjMat('solar', { roughness: 0.3, metalness: 0.4 });
+
+  City.wallTex = plasterMat.map;   // เก็บไว้เผื่ออ้างอิงจาก main.js
+  City.mats = {
+    plaster: plasterMat, brick: brickMats, metal: metalMat, roof: roofMats,
+    glass: glassMat, wood: woodMat, bark: barkMat, leaf: leafMats,
+    asphalt: asphaltMat, concrete: concreteMat, solar: solarMat,
+  };
+
+  // เลือกวัสดุผนังจากสี/ตัวเลข (0=ปูน, 1-4=อิฐ)
+  function wallPick(c, R) {
+    if (c === 'brick') return brickMats[Math.floor(R() * brickMats.length)];
+    if (typeof c === 'number' && c >= 1 && c <= 4) return brickMats[c - 1];
+    return plasterMat;
+  }
+
+  // กล่องสีธรรมดา (วัสดุเดิมเพื่อความเข้ากัน) — ใช้สี tint บนปูนฉาบ
+  var tintCache = {};
+  function tintMat(hex, rough, metal) {
+    var key = hex + '_' + (rough || 0) + '_' + (metal || 0);
+    if (!tintCache[key]) {
+      var m = plasterMat.clone();
+      m.color = new THREE.Color(hex);
+      m.roughness = rough != null ? rough : 0.85;
+      m.metalness = metal || 0;
+      tintCache[key] = m;
     }
-    for (var y = 0; y < 128; y += 16) {
-      g.fillStyle = 'rgba(0,0,0,0.05)';
-      g.fillRect(0, y + 7, 128, 2);
-    }
-    var tex = new THREE.CanvasTexture(cv);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(2, 2);
-    return tex;
-  })();
-  City.wallTex = wallTex;
+    return tintCache[key];
+  }
+
   var box = function (w, h, d, c, o) {
     o = o || {};
-    var m = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshStandardMaterial({ color: c, map: wallTex, roughness: o.rough != null ? o.rough : 0.85, metalness: o.metal || 0 })
-    );
+    var mat;
+    if (o.mat) mat = o.mat;
+    else if (c === 'brick') mat = wallPick('brick', o.R || Math.random);
+    else if (c === 'metal') mat = metalMat;
+    else if (c === 'glass') mat = glassMat;
+    else if (c === 'wood') mat = woodMat;
+    else if (c === 'asphalt') mat = asphaltMat;
+    else if (c === 'concrete') mat = concreteMat;
+    else if (c === 'solar') mat = solarMat;
+    else if (typeof c === 'number') mat = tintMat(c, o.rough, o.metal);
+    else mat = plasterMat;
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     if (o.x) m.position.x = o.x;
     m.position.y = (o.y || 0) + h / 2;
     if (o.z) m.position.z = o.z;
     if (o.rx) m.rotation.x = o.rx;
     if (o.rz) m.rotation.z = o.rz;
+    if (o.ry) m.rotation.y = o.ry;
     return m;
   };
   var cyl = function (rt, rb, h, c, o) {
     o = o || {};
+    var mat = o.mat || (typeof c === 'number' ? tintMat(c, o.rough, o.metal) : plasterMat);
     var m = new THREE.Mesh(
       new THREE.CylinderGeometry(rt, rb, h, o.seg || 12),
-      new THREE.MeshStandardMaterial({ color: c, map: wallTex, roughness: o.rough != null ? o.rough : 0.85, metalness: o.metal || 0 })
+      mat
     );
     m.position.set(o.x || 0, (o.y || 0) + h / 2, o.z || 0);
     return m;
   };
   var cone = function (r, h, c, o) {
     o = o || {};
-    var m = new THREE.Mesh(
-      new THREE.ConeGeometry(r, h, o.seg || 12),
-      new THREE.MeshStandardMaterial({ color: c, map: wallTex, roughness: 0.7 })
-    );
+    var mat = o.mat || (typeof c === 'number' ? tintMat(c, 0.7) : plasterMat);
+    var m = new THREE.Mesh(new THREE.ConeGeometry(r, h, o.seg || 12), mat);
     m.position.set(o.x || 0, (o.y || 0) + h / 2, o.z || 0);
     return m;
   };
   var sphere = function (r, c, o) {
     o = o || {};
-    var m = new THREE.Mesh(
-      new THREE.SphereGeometry(r, 14, 10),
-      new THREE.MeshStandardMaterial({ color: c, map: wallTex, roughness: 0.8 })
-    );
+    var mat = o.mat || (typeof c === 'number' ? tintMat(c, 0.8) : plasterMat);
+    var m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat);
     m.position.set(o.x || 0, (o.y || 0) + r, o.z || 0);
     return m;
   };
   var dome = function (r, c, o) {
     o = o || {};
+    var mat = o.mat || (typeof c === 'number' ? tintMat(c, 0.7) : plasterMat);
     var m = new THREE.Mesh(
       new THREE.SphereGeometry(r, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: c, map: wallTex, roughness: 0.7 })
+      mat
     );
     m.position.set(o.x || 0, o.y || 0, o.z || 0);
     return m;
   };
   var pyramid = function (w, h, c, o) {
     o = o || {};
-    var m = new THREE.Mesh(
-      new THREE.ConeGeometry(w, h, 4),
-      new THREE.MeshStandardMaterial({ color: c, map: wallTex, roughness: 0.7 })
-    );
+    var mat = o.mat || (typeof c === 'number' ? tintMat(c, 0.7) : plasterMat);
+    var m = new THREE.Mesh(new THREE.ConeGeometry(w, h, 4), mat);
     m.position.set(o.x || 0, (o.y || 0) + h / 2, o.z || 0);
     m.rotation.y = Math.PI / 4;
     return m;
   };
-  var tree = function (scale) {
+
+  // หลังคาทรงจั่ว (สองเฉียง) ใช้กระเบื้องจริง — ใช้แทนกล่องหลังคาแบน
+  function gableRoof(w, d, h, hue, o) {
+    o = o || {};
     var g = new THREE.Group();
-    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 2.4, 6), new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.95 }));
-    trunk.position.y = 1.2;
+    var mat = roofMats[hue % roofMats.length];
+    // พีระมิด 4 เหลี่ยม: ความยาวด้าน = R*√2 → ตั้ง R = w/√2 เพื่อให้ฐานกว้างเท่าตัวอาคาร
+    var geo = new THREE.CylinderGeometry(0.02, w * 0.707, h, 4, 1);
+    var m = new THREE.Mesh(geo, mat);
+    m.rotation.y = Math.PI / 4;
+    m.scale.z = d / w;   // ปรับสัดส่วนทรงจั่วตามแผน
+    m.position.y = (o.y || 0) + h / 2;
+    if (o.x) m.position.x = o.x;
+    if (o.z) m.position.z = o.z;
+    m.castShadow = true;
+    g.add(m);
+    return g;
+  }
+
+  // ของบนดาดฟ้า: แอร์ + ถังน้ำ + เสาอากาศ + แผงโซลาร์ (สุ่มใส่ให้ตึกดูมีชีวิต)
+  function rooftopClutter(w, d, h, R) {
+    var g = new THREE.Group();
+    var nAC = 1 + Math.floor(R() * 3);
+    for (var i = 0; i < nAC; i++) {
+      var ac = box(1.1 + R() * 0.6, 0.8, 0.9, 0xb8bec4, { metal: 0.4, rough: 0.5 });
+      ac.position.set((R() - 0.5) * (w - 2), h + 0.4, (R() - 0.5) * (d - 2));
+      ac.position.y = h + 0.4;
+      g.add(ac);
+    }
+    if (R() < 0.5) {
+      var tank = cyl(0.9, 0.9, 1.8, 0x4a6a8a, { x: (R() - 0.5) * w * 0.5, y: h, z: (R() - 0.5) * d * 0.5, rough: 0.5, metal: 0.2 });
+      g.add(tank);
+    }
+    if (R() < 0.45) {
+      var ant = cyl(0.05, 0.08, 2.4 + R() * 1.6, 0x8a9298, { x: (R() - 0.5) * w * 0.6, y: h, z: (R() - 0.5) * d * 0.6, metal: 0.5, rough: 0.4 });
+      g.add(ant);
+    }
+    if (R() < 0.4) {
+      var sp = box(w * 0.35, 0.12, d * 0.28, 0xffffff, { mat: solarMat, x: (R() - 0.5) * w * 0.3, y: h + 0.25, z: (R() - 0.5) * d * 0.3, rx: -0.35 });
+      g.add(sp);
+    }
+    return g;
+  }
+
+  // ต้นไม้สมจริง (ลำต้น bark + พุ่มใบ leaves texture + สุ่มสี)
+  var tree = function (scale, R) {
+    R = R || Math.random;
+    var g = new THREE.Group();
+    var th = 2.2 + R() * 0.8;
+    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.3, th, 7), barkMat);
+    trunk.position.y = th / 2;
     trunk.castShadow = true;
     g.add(trunk);
-    var leafMat = new THREE.MeshStandardMaterial({ color: 0x3f7d33, roughness: 0.9 });
-    var c1 = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 6), leafMat);
-    c1.position.y = 3.1;
+    var leafMat = leafMats[Math.floor(R() * leafMats.length)];
+    var c1 = new THREE.Mesh(new THREE.SphereGeometry(1.4 + R() * 0.5, 9, 7), leafMat);
+    c1.position.y = th + 0.9;
+    c1.rotation.y = R() * 3;
     c1.castShadow = true;
     g.add(c1);
-    var c2 = new THREE.Mesh(new THREE.SphereGeometry(1.05, 8, 6), leafMat);
-    c2.position.set(0.5, 3.9, 0.3);
+    var c2 = new THREE.Mesh(new THREE.SphereGeometry(0.95 + R() * 0.35, 8, 6), leafMat);
+    c2.position.set(0.55 + R() * 0.2, th + 1.7, 0.3);
+    c2.castShadow = true;
     g.add(c2);
+    if (R() < 0.7) {
+      var c3 = new THREE.Mesh(new THREE.SphereGeometry(0.75, 7, 6), leafMat);
+      c3.position.set(-0.6, th + 1.3, -0.4);
+      g.add(c3);
+    }
     g.scale.setScalar(scale || 1);
     return g;
   };
   City.tree = tree;
+
+  // พุ่มไม้เตี้ย (ล้อมสวน/ใต้ต้นไม้)
+  var bush = function (scale, R) {
+    R = R || Math.random;
+    var g = new THREE.Group();
+    var leafMat = leafMats[Math.floor(R() * leafMats.length)];
+    var b = new THREE.Mesh(new THREE.SphereGeometry(0.6 + R() * 0.3, 8, 6), leafMat);
+    b.scale.y = 0.7;
+    b.position.y = 0.35;
+    b.castShadow = true;
+    g.add(b);
+    if (R() < 0.6) {
+      var b2 = new THREE.Mesh(new THREE.SphereGeometry(0.4, 7, 5), leafMat);
+      b2.scale.y = 0.7;
+      b2.position.set(0.5, 0.28, 0.2);
+      g.add(b2);
+    }
+    g.scale.setScalar(scale || 1);
+    return g;
+  };
+  City.bush = bush;
+
+  // ก้อนหิน (ตกแต่งริมถนน/สวน)
+  var rock = function (scale) {
+    var g = new THREE.Group();
+    var m = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.55, 0),
+      new THREE.MeshStandardMaterial({ color: 0x8d9298, roughness: 0.95 })
+    );
+    m.scale.set(1 + Math.random() * 0.4, 0.6 + Math.random() * 0.3, 1 + Math.random() * 0.4);
+    m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    m.position.y = 0.22;
+    m.castShadow = true;
+    g.add(m);
+    g.scale.setScalar(scale || 1);
+    return g;
+  };
+  City.rock = rock;
+
+  // ---------- ยานพาหนะสมจริง (รถเก๋ง/กระบะ/ตู้/บัส/รถบรรทุก) ----------
+  var wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.24, 10);
+  var wheelMat = new THREE.MeshStandardMaterial({ color: 0x1c1e20, roughness: 0.9 });
+  var rimGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.26, 8);
+  var rimMat = new THREE.MeshStandardMaterial({ color: 0xb8bec6, roughness: 0.35, metalness: 0.8 });
+  var glassDarkMat = new THREE.MeshStandardMaterial({ color: 0x1e2a34, roughness: 0.15, metalness: 0.6 });
+
+  function carPaintMat(hex) {
+    return new THREE.MeshStandardMaterial({ color: hex, roughness: 0.32, metalness: 0.55 });
+  }
+  var carPaintCache = {};
+  function paint(hex) {
+    if (!carPaintCache[hex]) carPaintCache[hex] = carPaintMat(hex);
+    return carPaintCache[hex];
+  }
+
+  function addWheels(g, axZ, axY, halfTrack, wheelR) {
+    [[-halfTrack, axZ[0]], [halfTrack, axZ[0]], [-halfTrack, axZ[1]], [halfTrack, axZ[1]]].forEach(function (p) {
+      var w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.rotation.x = Math.PI / 2;
+      w.scale.setScalar(wheelR / 0.32);
+      w.position.set(p[0], axY, p[1]);
+      var rim = new THREE.Mesh(rimGeo, rimMat);
+      rim.rotation.x = Math.PI / 2;
+      rim.scale.setScalar(wheelR / 0.32);
+      rim.position.set(p[0] * 1.02, axY, p[1]);
+      g.add(w, rim);
+    });
+  }
+
+  // ประเภท: 'sedan' | 'pickup' | 'van' | 'bus' | 'truck' | 'taxi' | 'tuk'
+  function makeVehicle(type, R) {
+    R = R || Math.random;
+    var g = new THREE.Group();
+    var colors = [0xc23b2e, 0x2e5fa3, 0xdfe2e6, 0x2b2e33, 0xd9a13b, 0x3f7a4e, 0x8a9298, 0x6b4a8a];
+    var bodyMat;
+    if (type === 'taxi') bodyMat = paint(0xe8b830);
+    else if (type === 'bus') bodyMat = paint([0xc23b2e, 0x2e7d5b, 0xd9a13b][Math.floor(R() * 3)]);
+    else bodyMat = paint(colors[Math.floor(R() * colors.length)]);
+
+    var L, W, H;
+    if (type === 'sedan' || type === 'taxi') { L = 4.4; W = 1.9; H = 0.75; }
+    else if (type === 'pickup') { L = 5.0; W = 2.0; H = 0.85; }
+    else if (type === 'van') { L = 5.2; W = 2.1; H = 1.6; }
+    else if (type === 'bus') { L = 11.5; W = 2.5; H = 2.3; }
+    else if (type === 'truck') { L = 8.5; W = 2.5; H = 1.8; }
+    else { L = 2.8; W = 1.7; H = 0.8; } // tuk-tuk
+
+    // ตัวรถชั้นล่าง
+    var body = new THREE.Mesh(new THREE.BoxGeometry(W, H, L), bodyMat);
+    body.position.y = 0.55 + H / 2 - 0.25;
+    body.castShadow = true;
+    g.add(body);
+
+    var wheelR = type === 'bus' || type === 'truck' ? 0.5 : 0.34;
+    var axY = wheelR;
+
+    if (type === 'sedan' || type === 'taxi') {
+      var cab = new THREE.Mesh(new THREE.BoxGeometry(W * 0.92, 0.62, L * 0.5), bodyMat);
+      cab.position.set(0, body.position.y + H / 2 + 0.28, -L * 0.05);
+      cab.castShadow = true;
+      g.add(cab);
+      var winL = new THREE.Mesh(new THREE.BoxGeometry(W * 0.94, 0.42, L * 0.46), glassDarkMat);
+      winL.position.set(0, cab.position.y + 0.08, -L * 0.05);
+      g.add(winL);
+    } else if (type === 'pickup') {
+      var cab2 = new THREE.Mesh(new THREE.BoxGeometry(W * 0.95, 0.7, L * 0.32), bodyMat);
+      cab2.position.set(0, body.position.y + H / 2 + 0.32, L * 0.1);
+      g.add(cab2);
+      var win2 = new THREE.Mesh(new THREE.BoxGeometry(W * 0.97, 0.42, L * 0.28), glassDarkMat);
+      win2.position.set(0, cab2.position.y + 0.1, L * 0.1);
+      g.add(win2);
+      var bed = new THREE.Mesh(new THREE.BoxGeometry(W * 0.96, 0.5, L * 0.5), bodyMat);
+      bed.position.set(0, body.position.y + H / 2 + 0.1, -L * 0.24);
+      g.add(bed);
+    } else if (type === 'van') {
+      var vtop = new THREE.Mesh(new THREE.BoxGeometry(W, 0.9, L * 0.92), bodyMat);
+      vtop.position.set(0, body.position.y + H / 2 + 0.42, -L * 0.02);
+      vtop.castShadow = true;
+      g.add(vtop);
+      var vwin = new THREE.Mesh(new THREE.BoxGeometry(W * 1.01, 0.5, L * 0.3), glassDarkMat);
+      vwin.position.set(0, vtop.position.y, L * 0.32);
+      g.add(vwin);
+    } else if (type === 'bus') {
+      var bt = new THREE.Mesh(new THREE.BoxGeometry(W * 0.98, 1.3, L * 0.96), bodyMat);
+      bt.position.y = body.position.y + H / 2 + 0.6;
+      bt.castShadow = true;
+      g.add(bt);
+      // แถบหน้าต่างยาวสองข้าง
+      [-1, 1].forEach(function (s) {
+        var band = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.85, L * 0.85), glassDarkMat);
+        band.position.set(s * W / 2, bt.position.y, 0);
+        g.add(band);
+      });
+      var wband = new THREE.Mesh(new THREE.BoxGeometry(W * 0.98, 0.85, 0.06), glassDarkMat);
+      wband.position.set(0, bt.position.y, L * 0.48);
+      g.add(wband);
+      var stripe = new THREE.Mesh(new THREE.BoxGeometry(W * 1.01, 0.22, L * 0.97), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }));
+      stripe.position.y = body.position.y + 0.1;
+      g.add(stripe);
+    } else if (type === 'truck') {
+      var cab3 = new THREE.Mesh(new THREE.BoxGeometry(W, 1.7, 2.2), bodyMat);
+      cab3.position.set(0, 1.55, L * 0.38);
+      cab3.castShadow = true;
+      g.add(cab3);
+      var cwin = new THREE.Mesh(new THREE.BoxGeometry(W * 1.01, 0.6, 1.8), glassDarkMat);
+      cwin.position.set(0, 2.15, L * 0.38);
+      g.add(cwin);
+      var box3 = new THREE.Mesh(new THREE.BoxGeometry(W, 2.4, L * 0.58), metalMat);
+      box3.position.set(0, 2.0, -L * 0.15);
+      box3.castShadow = true;
+      g.add(box3);
+    } else { // tuk-tuk
+      var roof = new THREE.Mesh(new THREE.BoxGeometry(W, 0.1, L * 0.7), bodyMat);
+      roof.position.set(0, 1.75, 0);
+      g.add(roof);
+      [-1, 1].forEach(function (s) {
+        var post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6), bodyMat);
+        post.position.set(s * W * 0.42, 1.15, -L * 0.25);
+        g.add(post);
+      });
+      var front = new THREE.Mesh(new THREE.BoxGeometry(W * 0.9, 0.7, 0.1), glassDarkMat);
+      front.position.set(0, 1.35, L * 0.33);
+      g.add(front);
+      addWheels(g, [0.9, -0.9], 0.3, 0.75, 0.3);
+      var engine = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.8), new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.6, metalness: 0.4 }));
+      engine.position.set(0, 0.55, L * 0.42);
+      g.add(engine);
+      addLights(g, L, W);
+      g.userData.vehicleType = type;
+      return g;
+    }
+
+    addWheels(g, [L * 0.32, -L * 0.32], axY, W / 2 - 0.05, wheelR);
+    addLights(g, L, W);
+    g.userData.vehicleType = type;
+    return g;
+
+    function addLights(grp, len, wid) {
+      var headMat = new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xffedb0, emissiveIntensity: 0.7, roughness: 0.3 });
+      var tailMat = new THREE.MeshStandardMaterial({ color: 0x8a1c14, emissive: 0xd93425, emissiveIntensity: 0.8, roughness: 0.3 });
+      var zf = len / 2 - 0.05;
+      [-1, 1].forEach(function (s) {
+        var h = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.08), headMat);
+        h.position.set(s * wid * 0.32, 0.75, zf);
+        grp.add(h);
+        var t = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.08), tailMat);
+        t.position.set(s * wid * 0.32, 0.78, -zf);
+        grp.add(t);
+      });
+    }
+  }
+  City.makeVehicle = makeVehicle;
+  City.rooftopClutter = rooftopClutter;
+  City.gableRoof = gableRoof;
+
+  // ป้ายบิลบอร์ด (ใช้ใน main.js เติมริมถนน)
+  var billboard = function (R) {
+    R = R || Math.random;
+    var g = new THREE.Group();
+    [-1.6, 1.6].forEach(function (x) {
+      g.add(cyl(0.09, 0.11, 5.2, 0x5a6268, { x: x, y: 0, metal: 0.4, rough: 0.5 }));
+    });
+    var adColors = [0xd94f4f, 0x42a5f5, 0xffca28, 0x66bb6a, 0xef5350, 0x26c6da];
+    var c1 = adColors[Math.floor(R() * adColors.length)];
+    var c2 = adColors[Math.floor(R() * adColors.length)];
+    var panel = box(6, 3, 0.18, c1, { y: 5.2, rough: 0.6 });
+    g.add(panel);
+    g.add(box(5.2, 0.9, 0.2, c2, { y: 6.2, rough: 0.6 }));
+    g.add(box(1.4, 0.6, 0.2, 0xffffff, { x: -1.4, y: 5.6, rough: 0.6 }));
+    return g;
+  };
+  City.billboard = billboard;
 
   // ---------- landmark registry ----------
   var MAKERS = (City.makers);
@@ -126,13 +429,13 @@
     var g = new THREE.Group();
     var c = R() < 0.5 ? 0xf2d8a7 : 0xdce8d8;
     g.add(box(6, 3, 4.5, c, { y: 0 }));
-    g.add(box(6.6, 0.35, 5.1, 0x8a4a2e, { y: 3 }));          // หลังคาทรงจั่วฐาน
-    var roofL = box(6.6, 2.2, 3.1, 0xb3502d, { y: 3.35 });
-    roofL.rotation.x = 0; // ทรงจั่วสองเฉียง (สร้างจากกล่องบิด)
-    g.add(roofL);
+    g.add(box(6.6, 0.35, 5.1, 0x8a4a2e, { y: 3 }));          // ฐานหลังคา
+    g.add(gableRoof(6.6, 5.1, 2.2, R() < 0.6 ? 0 : (R() < 0.5 ? 1 : 2), { y: 3.35 })); // หลังคากระเบื้องจริง
     g.add(box(1.2, 2.1, 0.15, 0x5a3a22, { x: 1.5, y: 0, z: 2.28 })); // ประตู
     g.add(box(1.4, 1.1, 0.12, 0x9fd4e8, { x: -1.6, y: 0.9, z: 2.26 }));
-    g.add(box(0.5, 1.6, 0.5, 0xcccccc, { x: 0, y: 3.55, z: 0 }));    // ปล่องไฟ
+    g.add(box(1.4, 1.1, 0.12, 0x9fd4e8, { x: 1.6, y: 0.9, z: 2.26 }));
+    g.add(box(0.5, 1.6, 0.5, 0xb0aca4, { x: 0, y: 3.55, z: 0 }));    // ปล่องไฟคอนกรีต
+    if (R() < 0.35) g.add(tree(0.55, R));                            // ต้นไม้หน้าบ้าน
     return g;
   });
 
@@ -165,12 +468,17 @@
 
   def('condo', 'คอนโดมิเนียม', 'ที่อยู่อาศัย', 32, function (R) {
     var g = new THREE.Group();
-    var tower = box(8, 30, 8, 0xe8e2d5);
+    var tower = new THREE.Mesh(new THREE.BoxGeometry(8, 30, 8), glassMat);   // กระจกสะท้อนฟ้า
+    tower.position.y = 15;
+    tower.castShadow = true;
     g.add(tower);
     g.add(box(8.4, 0.6, 8.4, 0x7d8894, { y: 30 }));
-    // ระเบียงเป็นแถบรอบอาคาร
+    // ระเบียงเป็นแถบคอนกรีตรอบอาคาร
     for (var f = 0; f < 10; f++) {
-      g.add(box(8.5, 0.25, 8.5, 0xbfc9d2, { y: 3 + f * 3 }));
+      var balc = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.25, 8.5), concreteMat);
+      balc.position.y = 3 + f * 3;
+      balc.castShadow = true;
+      g.add(balc);
     }
     g.add(box(1.5, 2.5, 0.3, 0x4fc3f7, { y: 0, z: 4.15 })); // ชั้นลอยหน้าอาคาร
     return g;
@@ -225,9 +533,9 @@
     var pool = box(6, 0.4, 4, 0x4fc3f7, { y: 0.05, x: 0, z: 1 });
     pool.material = new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.15, metalness: 0.1 });
     g.add(pool);
-    g.add(tree(0.9));
+    g.add(tree(0.9, R));
     g.children[g.children.length - 1].position.set(6, 0, -4);
-    g.add(tree(0.8));
+    g.add(tree(0.8, R));
     g.children[g.children.length - 1].position.set(-6.5, 0, -4.5);
     return g;
   });
@@ -246,7 +554,7 @@
     g.add(horse);
     g.add(box(0.15, 1, 0.15, 0x8d6e63, { x: -0.5, y: 0, z: 3.6 }));
     g.add(box(0.15, 1, 0.15, 0x8d6e63, { x: 0.5, y: 0, z: 3.6 }));
-    g.add(tree(0.7));
+    g.add(tree(0.7, R));
     g.children[g.children.length - 1].position.set(-5, 0, 0);
     return g;
   });
@@ -559,9 +867,12 @@
   def('office', 'อาคารสำนักงาน', 'ค้าขาย', 30, function (R) {
     var g = new THREE.Group();
     var h = 18 + Math.floor(R() * 4) * 3; // 18-30
-    g.add(box(10, h, 10, 0xb0c4d4));
+    var tower2 = new THREE.Mesh(new THREE.BoxGeometry(10, h, 10), glassMat);  // อาคารกระจกเฉลียงฟ้า
+    tower2.position.y = h / 2;
+    tower2.castShadow = true;
+    g.add(tower2);
     for (var f = 0; f < h / 3; f++) {
-      g.add(box(10.2, 1.6, 10.2, 0x8fc5e0, { y: 0.7 + f * 3 })); // แถบกระจก
+      g.add(box(10.2, 0.35, 10.2, 0x6a7680, { y: f * 3, metal: 0.3, rough: 0.5 })); // ขอบชั้นคอนกรีต
     }
     g.add(box(10.4, 0.6, 10.4, 0x546e7a, { y: h }));
     g.add(box(1.5, 4, 0.4, 0xd94f4f, { y: h, x: 0, z: 0 }));    // เสาอากาศ
@@ -594,7 +905,7 @@
     g.add(box(6, 0.5, 6, 0xd9d2bd, { y: 8 }));                  // ยอด
     g.add(box(0.3, 2, 0.3, 0x8d9ca8, { y: 8.5, x: 0, z: 0 }));
     g.add(box(1.6, 1, 0.06, 0xd94f4f, { x: 0.9, y: 9, z: 0 })); // ธง
-    g.add(tree(0.8));
+    g.add(tree(0.8, R));
     g.children[g.children.length - 1].position.set(4, 0, 3);
     return g;
   });
@@ -663,15 +974,18 @@
   // ====
   def('factory', 'โรงงาน', 'อุตสาหกรรม', 9, function (R) {
     var g = new THREE.Group();
-    g.add(box(14, 5, 9, 0xd9d9d9));
+    var shed = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 9), metalMat);   // ผนังสังกะสีเป็นร่อง
+    shed.position.y = 2.5;
+    shed.castShadow = true;
+    g.add(shed);
     // หลังคาจั่วโรงงาน (ซอยเป็นร่อง)
     for (var i = 0; i < 4; i++) {
-      var saw = box(3.4, 1.8, 9.4, 0xb0b8bc, { x: -5.2 + i * 3.5, y: 5 });
+      var saw = box(3.4, 1.8, 9.4, 0xb0b8bc, { x: -5.2 + i * 3.5, y: 5, mat: metalMat });
       saw.rotation.z = 0;
       g.add(saw);
     }
-    g.add(cyl(1, 1, 12, 0xe57373, { x: -7, y: 0, z: -3 }));     // ปล่องไฟสูง
-    g.add(box(0.5, 2, 0.5, 0xcccccc, { x: -7, y: 12, z: -3 }));
+    g.add(cyl(1, 1, 12, 0xc9c2b8, { x: -7, y: 0, z: -3 }));     // ปล่องไฟคอนกรีต
+    g.add(box(0.5, 2, 0.5, 0xd94f4f, { x: -7, y: 12, z: -3 }));
     g.add(box(3.5, 3.5, 0.3, 0x607d8b, { x: 3, y: 0, z: 4.6 }));
     return g;
   });
@@ -792,7 +1106,7 @@
     for (var i = 0; i < 6; i++) {
       g.add(box(0.15, 1.2, 0.15, 0x6d4c41, { x: -7.5 + i * 3, y: 0, z: 6 }));
     }
-    g.add(tree(0.9));
+    g.add(tree(0.9, R));
     g.children[g.children.length - 1].position.set(-9, 0, -4);
     return g;
   });
@@ -1010,7 +1324,7 @@
       }
     }
     for (var t = 0; t < 3; t++) {
-      g.add(tree(0.7));
+      g.add(tree(0.7, R));
       g.children[g.children.length - 1].position.set(-6 + t * 6, 0, 5);
     }
     return g;
