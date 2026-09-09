@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ผังเมือง 3D — City Plan 3D Viewer</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+
+    <!-- แถบหัวเรื่อง -->
+    <header class="topbar">
+      <h1>🏙️ ผังเมือง 3D — 17 โซน</h1>
+      <p>ลากเพื่อหมุน • สกรอลล์เพื่อซูม • คลิกขวาเพื่อเลื่อน • คลิกอาคารเพื่อดูข้อมูล</p>
+    </header>
+
+    <!-- แผงควบคุม -->
+    <aside class="panel" id="controlPanel">
+      <h2>การควบคุม</h2>
+
+      <label class="field toggle">
+        <input type="checkbox" id="showBuildings" checked />
+        <span>แสดงอาคาร</span>
+      </label>
+
+      <label class="field toggle">
+        <input type="checkbox" id="showZones" checked />
+        <span>สีตามโซนผังเมือง</span>
+      </label>
+
+      <label class="field toggle">
+        <input type="checkbox" id="autoRotate" />
+        <span>หมุนอัตโนมัติ</span>
+      </label>
+
+      <div class="field">
+        <span>โหมดแสง</span>
+        <div class="btn-group" id="lightMode">
+          <button data-mode="day" class="active">☀️ กลางวัน</button>
+          <button data-mode="sunset">🌇 เย็น</button>
+          <button data-mode="night">🌃 กลางคืน</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span>มุมมองกล้อง</span>
+        <div class="btn-group" id="viewPresets">
+          <button data-view="top">มุมสูง</button>
+          <button data-view="iso">มุมเฉียง</button>
+          <button data-view="street">ระดับถนน</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- คำอธิบายสัญลักษณ์ -->
+    <aside class="panel legend" id="legend">
+      <h2>สัญลักษณ์โซน (17 หมวด)</h2>
+      <ul id="legendList"></ul>
+    </aside>
+
+    <!-- กล่องข้อมูลเมื่อคลิกโซน -->
+    <div class="panel tooltip hidden" id="tooltip"></div>
+
+    <div id="loading">กำลังโหลดผังเมือง…</div>
+  </div>
+
+  <!-- Three.js แบบ classic (ใช้ได้โดยเปิดไฟล์ตรง ๆ ไม่ต้องมี server) -->
+  <script src="vendor/three.min.js"></script>
+  <script src="vendor/OrbitControls.js"></script>
+  <script src="js/city.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

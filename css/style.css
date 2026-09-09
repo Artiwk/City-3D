@@ -1,0 +1,175 @@
+:root {
+  --bg: #0f1419;
+  --panel: rgba(18, 24, 32, 0.88);
+  --border: rgba(255, 255, 255, 0.09);
+  --text: #e8edf2;
+  --text-dim: #93a1b0;
+  --accent: #4fc3f7;
+  --radius: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: "Segoe UI", "Sarabun", "Noto Sans Thai", Tahoma, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app { position: relative; width: 100vw; height: 100vh; }
+
+#scene { display: block; width: 100%; height: 100%; }
+
+/* ---------- Topbar ---------- */
+.topbar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 22px;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar p  { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+
+/* ---------- Panels ---------- */
+.panel {
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  backdrop-filter: blur(8px);
+}
+.panel h2 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+#controlPanel { top: 90px; left: 16px; width: 240px; }
+#legend { top: 90px; right: 16px; width: 230px; }
+
+/* ---------- Form fields ---------- */
+.field { display: block; margin-bottom: 12px; }
+.field > span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+}
+
+select {
+  width: 100%;
+  padding: 7px 9px;
+  background: #1a222c;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle { display: flex; align-items: center; gap: 8px; }
+.toggle span { margin: 0; font-size: 0.85rem; color: var(--text); }
+
+/* ---------- Buttons ---------- */
+.btn-group { display: flex; gap: 6px; }
+.btn-group button {
+  flex: 1;
+  padding: 7px 4px;
+  background: #1a222c;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-group button:hover { color: var(--text); border-color: var(--accent); }
+.btn-group button.active {
+  background: var(--accent);
+  color: #08131a;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------- Legend ---------- */
+#legendList {
+  list-style: none;
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+#legendList::-webkit-scrollbar { width: 6px; }
+#legendList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }
+#legendList li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#legendList li:hover { background: rgba(255, 255, 255, 0.06); }
+#legendList li.dim { opacity: 0.35; }
+.swatch {
+  width: 15px; height: 15px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+/* ---------- Tooltip ---------- */
+.tooltip {
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  text-align: center;
+  transition: opacity 0.2s;
+}
+.tooltip.hidden { opacity: 0; pointer-events: none; }
+.tooltip b { color: var(--accent); font-size: 0.95rem; }
+.tooltip small { color: var(--text-dim); }
+
+/* ---------- Loading ---------- */
+#loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 1rem;
+  z-index: 10;
+  transition: opacity 0.4s;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 720px) {
+  #legend { display: none; }
+  #controlPanel { width: 200px; top: 84px; }
+}
