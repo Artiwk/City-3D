@@ -602,6 +602,282 @@
     return t;
   }
 
+  /* ================= ไม้ไสยางแผ่น (ฝาบ้าน มีร่องไม้แนวตั้ง) ================= */
+  function siding(tone) {
+    tone = tone || 0;
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 256;
+    var g = cv.getContext('2d');
+    var rand = rng(1501 + tone);
+    var cols = [
+      ['#b98a5a', '#a87848', '#c69a68'],   // ไม้สีน้ำตาลอ่อน
+      ['#9a7a52', '#8a6a44', '#a88a60'],   // ไม้ชังบนเก่า
+      ['#d8cfc0', '#c8bfae', '#e0d8c8'],   // ไม้ขาว/ครีม
+    ];
+    var c = cols[tone % cols.length];
+    g.fillStyle = c[0];
+    g.fillRect(0, 0, 256, 256);
+    var pw = 21;   // ความกว้างแผ่นไม้
+    for (var x = 0; x < 256 + pw; x += pw) {
+      g.fillStyle = c[Math.floor(rand() * c.length)];
+      g.fillRect(x, 0, pw - 2, 256);
+      // เส้นเกรนไม้แนวตั้ง
+      for (var k = 0; k < 5; k++) {
+        var gx = x + 2 + rand() * (pw - 5);
+        g.strokeStyle = 'rgba(' + (60 + rand() * 40 | 0) + ',' + (42 + rand() * 30 | 0) + ',' + (22 + rand() * 20 | 0) + ',' + (0.12 + rand() * 0.2) + ')';
+        g.lineWidth = 0.8;
+        g.beginPath();
+        g.moveTo(gx, 0);
+        g.bezierCurveTo(gx + (rand() - 0.5) * 4, 80, gx + (rand() - 0.5) * 4, 170, gx + (rand() - 0.5) * 3, 256);
+        g.stroke();
+      }
+      // รอยปลวก/คราบเก่า
+      if (rand() < 0.35) {
+        g.fillStyle = 'rgba(50,34,18,' + (0.06 + rand() * 0.1) + ')';
+        g.fillRect(x + rand() * 10, rand() * 200, 4 + rand() * 8, 20 + rand() * 50);
+      }
+      // ขอบแผ่น (เงาบน/ล่าง)
+      g.fillStyle = 'rgba(255,255,255,0.14)';
+      g.fillRect(x, 0, 1.6, 256);
+      g.fillStyle = 'rgba(0,0,0,0.2)';
+      g.fillRect(x + pw - 2, 0, 1.6, 256);
+    }
+    grain(g, 256, 256, 1502 + tone, 0.08);
+    var map = canvasTex(cv, 1, 1);
+
+    var bc = document.createElement('canvas');
+    bc.width = bc.height = 128;
+    var bg = bc.getContext('2d');
+    bg.fillStyle = '#808080'; bg.fillRect(0, 0, 128, 128);
+    var br = rng(1503 + tone);
+    for (var x2 = 0; x2 < 128; x2 += 10) {
+      var grd = bg.createLinearGradient(x2, 0, x2 + 10, 0);
+      grd.addColorStop(0, '#c0c0c0');
+      grd.addColorStop(0.7, '#8a8a8a');
+      grd.addColorStop(1, '#5a5a5a');
+      bg.fillStyle = grd;
+      bg.fillRect(x2, 0, 10, 128);
+    }
+    var bump = linTex(bc, 1, 1);
+    return { map: map, bumpMap: bump, bumpScale: 0.35 };
+  }
+
+  /* ================= หลังคาโลหะสี (สังกะสีทาสี ร่องลึก) ================= */
+  function metalRoof(tone) {
+    tone = tone || 0;
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 128;
+    var g = cv.getContext('2d');
+    var cols = [
+      ['#c8452e', '#a83a26', '#e05a40'],   // แดง
+      ['#3a6ea8', '#2e5a88', '#4a80c0'],   // น้ำเงิน
+      ['#4a8a52', '#3a7442', '#5aa462'],   // เขียว
+    ];
+    var c = cols[tone % cols.length];
+    g.fillStyle = c[0];
+    g.fillRect(0, 0, 128, 128);
+    for (var x = 0; x < 128; x += 16) {
+      var grd = g.createLinearGradient(x, 0, x + 16, 0);
+      grd.addColorStop(0, c[1]);
+      grd.addColorStop(0.35, c[2]);
+      grd.addColorStop(0.65, c[0]);
+      grd.addColorStop(1, c[1]);
+      g.fillStyle = grd;
+      g.fillRect(x, 0, 16, 128);
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.fillRect(x + 15, 0, 1.2, 128);
+    }
+    blotches(g, 128, 128, 1551 + tone, 8, 0.08, true);
+    grain(g, 128, 128, 1552 + tone, 0.06);
+    var map = canvasTex(cv, 1, 1);
+
+    var bc = document.createElement('canvas');
+    bc.width = bc.height = 64;
+    var bg = bc.getContext('2d');
+    bg.fillStyle = '#808080'; bg.fillRect(0, 0, 64, 64);
+    for (var x2 = 0; x2 < 64; x2 += 8) {
+      var grd2 = bg.createLinearGradient(x2, 0, x2 + 8, 0);
+      grd2.addColorStop(0, '#e8e8e8');
+      grd2.addColorStop(0.5, '#a0a0a0');
+      grd2.addColorStop(1, '#484848');
+      bg.fillStyle = grd2;
+      bg.fillRect(x2, 0, 8, 64);
+    }
+    return { map: map, bumpMap: linTex(bc, 1, 1), bumpScale: 0.4 };
+  }
+
+  /* ================= ผ้าใบกันแดด (แถบสลับสีสองเฉียง) ================= */
+  function awning(tone) {
+    tone = tone || 0;
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    var g = cv.getContext('2d');
+    var pairs = [
+      ['#e85a4f', '#f5f0e8'],
+      ['#42a5f5', '#f5f0e8'],
+      ['#66bb6a', '#f5f0e8'],
+      ['#ffca28', '#37474f'],
+    ];
+    var p = pairs[tone % pairs.length];
+    g.fillStyle = p[0];
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = p[1];
+    // แถบเฉียงสลับ
+    g.beginPath();
+    for (var i = -64; i < 128; i += 16) {
+      g.moveTo(i, 0); g.lineTo(i + 8, 0);
+      g.lineTo(i + 8 + 64, 64); g.lineTo(i + 64, 64);
+      g.closePath();
+    }
+    g.fill();
+    // ริมหยักล่าง
+    g.fillStyle = p[0];
+    for (var sx = 0; sx < 64; sx += 8) {
+      g.beginPath();
+      g.moveTo(sx, 64); g.lineTo(sx + 8, 64); g.lineTo(sx + 4, 58);
+      g.closePath(); g.fill();
+    }
+    grain(g, 64, 64, 1601 + tone, 0.07);
+    return { map: canvasTex(cv, 1, 1), bumpScale: 0.1 };
+  }
+
+  /* ================= แถบเตือนส้ม-ดำ (งานก่อสร้าง/อุตสาหกรรม) ================= */
+  function hazard() {
+    var cv = document.createElement('canvas');
+    cv.width = 128; cv.height = 64;
+    var g = cv.getContext('2d');
+    g.fillStyle = '#e8862a';
+    g.fillRect(0, 0, 128, 64);
+    g.fillStyle = '#26292e';
+    for (var i = -64; i < 128; i += 24) {
+      g.beginPath();
+      g.moveTo(i, 0); g.lineTo(i + 12, 0);
+      g.lineTo(i + 12 + 64, 64); g.lineTo(i + 64, 64);
+      g.closePath(); g.fill();
+    }
+    grain(g, 128, 64, 1651, 0.08);
+    return { map: canvasTex(cv, 1, 1), bumpScale: 0.05 };
+  }
+
+  /* ================= กากบาทแพทย์ (พื้นขาว/กากบาทแดง) ================= */
+  function medical() {
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    var g = cv.getContext('2d');
+    g.fillStyle = '#f2f6f8';
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#d94f4f';
+    g.fillRect(24, 8, 16, 48);
+    g.fillRect(8, 24, 48, 16);
+    grain(g, 64, 64, 1701, 0.05);
+    return { map: canvasTex(cv, 1, 1), bumpScale: 0.05 };
+  }
+
+  /* ================= นาข้าว (ต้นข้าวเขียวเหลืองเป็นแถว มีน้ำขัด) ================= */
+  function paddy() {
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 256;
+    var g = cv.getContext('2d');
+    var rand = rng(1751);
+    // น้ำโคลนในนา
+    var grd = g.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0, '#7a8a4a');
+    grd.addColorStop(1, '#8fa055');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 256, 256);
+    // แถวต้นข้าว (มองจากบน)
+    for (var row = 0; row < 16; row++) {
+      var y = row * 16;
+      for (var x = 0; x < 256; x += 7) {
+        var px2 = x + rand() * 4;
+        var py = y + rand() * 8;
+        var hue = rand();
+        var col = hue < 0.4 ? [128, 172, 72] : hue < 0.75 ? [148, 188, 88] : [172, 196, 104];
+        g.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.9)';
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(px2, py);
+        g.lineTo(px2 + (rand() - 0.5) * 4, py - 5 - rand() * 4);
+        g.stroke();
+        // รวงข้าวเหลืองอ่อน
+        if (rand() < 0.3) {
+          g.fillStyle = 'rgba(208,214,120,0.85)';
+          g.beginPath();
+          g.ellipse(px2 + (rand() - 0.5) * 3, py - 7, 1.4, 2.6, 0.3, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    }
+    blotches(g, 256, 256, 1752, 12, 0.05, false);
+    grain(g, 256, 256, 1753, 0.07);
+    var map = canvasTex(cv, 1, 1);
+
+    var bc = document.createElement('canvas');
+    bc.width = bc.height = 128;
+    var bg = bc.getContext('2d');
+    bg.fillStyle = '#808080'; bg.fillRect(0, 0, 128, 128);
+    var br = rng(1754);
+    for (var i = 0; i < 2000; i++) {
+      var vv = br() < 0.5 ? 100 : 170;
+      bg.fillStyle = 'rgba(' + vv + ',' + vv + ',' + vv + ',0.4)';
+      bg.fillRect(br() * 128, br() * 128, 1, 1 + br() * 2.5);
+    }
+    return { map: map, bumpMap: linTex(bc, 1, 1), bumpScale: 0.3 };
+  }
+
+  /* ================= ทองเปลว (จุดประกายเงา — ยอดวัด/ป้ายทอง) ================= */
+  function gold() {
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = 128;
+    var g = cv.getContext('2d');
+    var rand = rng(1801);
+    var grd = g.createLinearGradient(0, 0, 128, 128);
+    grd.addColorStop(0, '#e8c04a');
+    grd.addColorStop(0.5, '#d4af37');
+    grd.addColorStop(1, '#f0d878');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    // แต้มประกายสว่าง/เงา
+    for (var i = 0; i < 120; i++) {
+      var v = rand() < 0.5 ? 'rgba(255,240,180,0.5)' : 'rgba(150,110,30,0.3)';
+      g.fillStyle = v;
+      g.beginPath();
+      g.ellipse(rand() * 128, rand() * 128, 1 + rand() * 4, 1 + rand() * 3, rand() * 3, 0, Math.PI * 2);
+      g.fill();
+    }
+    grain(g, 128, 128, 1802, 0.06);
+    return { map: canvasTex(cv, 1, 1), bumpScale: 0.05 };
+  }
+
+  /* ---------- ป้ายชื่อไทย (วาดข้อความบน canvas ครั้งเดียวต่อข้อความ) ---------- */
+  var signCache = {};
+  function signTex(text, opts) {
+    opts = opts || {};
+    var key = text + '|' + (opts.bg || '#fff') + '|' + (opts.fg || '#222');
+    if (signCache[key]) return signCache[key];
+    var cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 64;
+    var g = cv.getContext('2d');
+    // พื้นป้าย + ขอบ
+    g.fillStyle = opts.bg || '#ffffff';
+    g.fillRect(0, 0, 256, 64);
+    g.strokeStyle = opts.edge || 'rgba(0,0,0,0.35)';
+    g.lineWidth = 6;
+    g.strokeRect(3, 3, 250, 58);
+    // ข้อความกึ่งกลาง (ฟอนต์ระบบอ่านไทยได้ทุกเครื่อง)
+    g.fillStyle = opts.fg || '#222222';
+    var fs = opts.size || 34;
+    g.font = 'bold ' + fs + 'px "Segoe UI", Tahoma, "Leelawadee UI", sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, 128, 34, 240);
+    var t = new THREE.CanvasTexture(cv);
+    t.anisotropy = maxAniso;
+    t.encoding = THREE.sRGBEncoding;
+    signCache[key] = t;
+    return t;
+  }
+
   /* ================= หิมะ/น้ำแข็ง ไม่ใช้ — เหลือ API ไว้ ================= */
 
   /* ---------- วัสดุสำเร็จรูป (cache ไว้ใช้ซ้ำ) ---------- */
@@ -629,6 +905,20 @@
       case 'wood': f = wood; break;
       case 'dirt': f = dirt; break;
       case 'solar': f = solar; break;
+      case 'siding': f = function () { return siding(0); }; break;
+      case 'sidingOld': f = function () { return siding(1); }; break;
+      case 'sidingCream': f = function () { return siding(2); }; break;
+      case 'metalRed': f = function () { return metalRoof(0); }; break;
+      case 'metalBlue': f = function () { return metalRoof(1); }; break;
+      case 'metalGreen': f = function () { return metalRoof(2); }; break;
+      case 'awningRed': f = function () { return awning(0); }; break;
+      case 'awningBlue': f = function () { return awning(1); }; break;
+      case 'awningGreen': f = function () { return awning(2); }; break;
+      case 'awningYellow': f = function () { return awning(3); }; break;
+      case 'hazard': f = hazard; break;
+      case 'medical': f = medical; break;
+      case 'paddy': f = paddy; break;
+      case 'gold': f = gold; break;
       default: return null;
     }
     cache[name] = f();
@@ -644,6 +934,7 @@
       roughness: opts.roughness !== undefined ? opts.roughness : 0.9,
       metalness: opts.metalness !== undefined ? opts.metalness : 0,
     };
+    if (opts.side !== undefined) p.side = opts.side;
     if (t) {
       if (t.map) p.map = t.map.clone();
       if (t.bumpMap) { p.bumpMap = t.bumpMap.clone(); p.bumpScale = opts.bumpScale !== undefined ? opts.bumpScale : t.bumpScale; }
@@ -662,6 +953,7 @@
     ObjMat: ObjMat,
     setAniso: setAniso,
     skyDome: skyDome,
+    signTex: signTex,
     grain: grain,
     blotches: blotches,
     rng: rng,

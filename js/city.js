@@ -35,13 +35,54 @@
   var asphaltMat = TX.ObjMat('asphalt', { roughness: 0.92 });
   var concreteMat = TX.ObjMat('concrete', { roughness: 0.95 });
   var solarMat = TX.ObjMat('solar', { roughness: 0.3, metalness: 0.4 });
+  var sidingMats = [
+    TX.ObjMat('siding', { roughness: 0.85, repX: 2, repY: 1 }),
+    TX.ObjMat('sidingOld', { roughness: 0.9, repX: 2, repY: 1 }),
+    TX.ObjMat('sidingCream', { roughness: 0.85, repX: 2, repY: 1 }),
+  ];
+  var metalRoofMats = [
+    TX.ObjMat('metalRed', { roughness: 0.45, metalness: 0.35, repX: 2, repY: 2 }),
+    TX.ObjMat('metalBlue', { roughness: 0.45, metalness: 0.35, repX: 2, repY: 2 }),
+    TX.ObjMat('metalGreen', { roughness: 0.45, metalness: 0.35, repX: 2, repY: 2 }),
+  ];
+  var awningMats = [
+    TX.ObjMat('awningRed', { roughness: 0.8 }),
+    TX.ObjMat('awningBlue', { roughness: 0.8 }),
+    TX.ObjMat('awningGreen', { roughness: 0.8 }),
+    TX.ObjMat('awningYellow', { roughness: 0.8 }),
+  ];
+  var hazardMat = TX.ObjMat('hazard', { roughness: 0.7, repX: 2, repY: 1 });
+  var medicalMat = TX.ObjMat('medical', { roughness: 0.5, metalness: 0.05 });
+  var paddyMat = TX.ObjMat('paddy', { roughness: 0.95 });
+  var goldMat = TX.ObjMat('gold', { roughness: 0.3, metalness: 0.75 });
+  var emissiveRedMat = new THREE.MeshStandardMaterial({ color: 0xd94f4f, emissive: 0xd93425, emissiveIntensity: 0.55, roughness: 0.4 });
+  var emissiveYellowMat = new THREE.MeshStandardMaterial({ color: 0xffd54f, emissive: 0xffc830, emissiveIntensity: 0.5, roughness: 0.4 });
 
   City.wallTex = plasterMat.map;   // เก็บไว้เผื่ออ้างอิงจาก main.js
   City.mats = {
     plaster: plasterMat, brick: brickMats, metal: metalMat, roof: roofMats,
     glass: glassMat, wood: woodMat, bark: barkMat, leaf: leafMats,
     asphalt: asphaltMat, concrete: concreteMat, solar: solarMat,
+    siding: sidingMats, metalRoof: metalRoofMats, awning: awningMats,
+    hazard: hazardMat, medical: medicalMat, paddy: paddyMat, gold: goldMat,
+    emissiveRed: emissiveRedMat, emissiveYellow: emissiveYellowMat,
   };
+
+  // ป้ายชื่อไทย (สองหน้า ยื่นหน้าอาคาร — มองแป๊บเดียวรู้เลยว่าคืออะไร)
+  function signBoard(w, h, text, bg, fg) {
+    var g = new THREE.Group();
+    var map = TX.signTex ? TX.signTex(text, { bg: bg, fg: fg }) : null;
+    var mat = map
+      ? new THREE.MeshStandardMaterial({ map: map, roughness: 0.6 })
+      : tintMat(0xf5f0e8, 0.7);
+    var board = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.14), [
+      mat, mat, mat, mat, mat, mat,
+    ]);
+    board.castShadow = true;
+    g.add(board);
+    return g;
+  }
+  City.signBoard = signBoard;
 
   // เลือกวัสดุผนังจากสี/ตัวเลข (0=ปูน, 1-4=อิฐ)
   function wallPick(c, R) {
@@ -427,14 +468,17 @@
   // =====================================================================
   def('house', 'บ้านเดี่ยว', 'ที่อยู่อาศัย', 6, function (R) {
     var g = new THREE.Group();
-    var c = R() < 0.5 ? 0xf2d8a7 : 0xdce8d8;
-    g.add(box(6, 3, 4.5, c, { y: 0 }));
+    var wall = sidingMats[Math.floor(R() * sidingMats.length)];   // ฝาไม้แผ่น
+    var wall2 = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 4.5), wall);
+    wall2.position.y = 1.5;
+    g.add(wall2);
     g.add(box(6.6, 0.35, 5.1, 0x8a4a2e, { y: 3 }));          // ฐานหลังคา
     g.add(gableRoof(6.6, 5.1, 2.2, R() < 0.6 ? 0 : (R() < 0.5 ? 1 : 2), { y: 3.35 })); // หลังคากระเบื้องจริง
     g.add(box(1.2, 2.1, 0.15, 0x5a3a22, { x: 1.5, y: 0, z: 2.28 })); // ประตู
     g.add(box(1.4, 1.1, 0.12, 0x9fd4e8, { x: -1.6, y: 0.9, z: 2.26 }));
     g.add(box(1.4, 1.1, 0.12, 0x9fd4e8, { x: 1.6, y: 0.9, z: 2.26 }));
     g.add(box(0.5, 1.6, 0.5, 0xb0aca4, { x: 0, y: 3.55, z: 0 }));    // ปล่องไฟคอนกรีต
+    g.add(signBoard(1.8, 0.42, 'บ้าน', '#f5efe0', '#5a3a22').translateY(2.35).translateZ(2.3)); // ป้ายบ้าน
     if (R() < 0.35) g.add(tree(0.55, R));                            // ต้นไม้หน้าบ้าน
     return g;
   });
@@ -442,11 +486,15 @@
   def('twinhouse', 'บ้านแฝด', 'ที่อยู่อาศัย', 6, function (R) {
     var g = new THREE.Group();
     for (var s = -1; s <= 1; s += 2) {
-      var half = box(2.9, 3, 4.5, s < 0 ? 0xf0e3c8 : 0xe4dcc4);
-      half.position.x = s * 1.5;
+      var side = sidingMats[s < 0 ? 0 : 2];
+      var half = new THREE.Mesh(new THREE.BoxGeometry(2.9, 3, 4.5), side);
+      half.position.x = s * 1.5; half.position.y = 1.5;
       g.add(half);
-      var rf = box(3.3, 1.8, 5, 0xb3502d, { x: s * 1.5, y: 3 });
+      var rf = new THREE.Mesh(new THREE.BoxGeometry(3.3, 1.8, 5), metalRoofMats[s < 0 ? 0 : 1]);
+      rf.position.set(s * 1.5, 3.9, 0);
+      rf.castShadow = true;
       g.add(rf);
+      g.add(signBoard(1.4, 0.36, 'แฝด', '#e8dcc0', '#5a4a2e').translateX(s * 1.5).translateY(2.5).translateZ(2.3));
     }
     g.add(box(0.15, 2, 4.5, 0x8a7a5a, { y: 0 })); // ผนังกั้นกลาง
     return g;
@@ -455,14 +503,22 @@
   def('townhouse', 'ทาวน์โฮม', 'ที่อยู่อาศัย', 7, function (R) {
     var g = new THREE.Group();
     for (var i = 0; i < 4; i++) {
-      var u = box(2.3, 4.2, 4, i % 2 ? 0xf3d9b0 : 0xeccfa4);
-      u.position.x = -3.45 + i * 2.3;
+      var u = new THREE.Mesh(new THREE.BoxGeometry(2.3, 4.2, 4), brickMats[i % brickMats.length]); // แต่ละหลังอิฐคนละโทน
+      u.position.set(-3.45 + i * 2.3, 2.1, 0);
       g.add(u);
-      var roof = box(2.3, 0.5, 4.4, 0x9a4f2c, { x: -3.45 + i * 2.3, y: 4.2 });
+      var roof = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.5, 4.4), metalRoofMats[i % metalRoofMats.length]);
+      roof.position.set(-3.45 + i * 2.3, 4.45, 0);
+      roof.castShadow = true;
       g.add(roof);
       var door = box(0.9, 1.9, 0.12, 0x6b4a2e, { x: -3.45 + i * 2.3, y: 0, z: 2.02 });
       g.add(door);
+      // หลังคาค้างเหนือประตู
+      var awn = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.9), awningMats[i % awningMats.length]);
+      awn.position.set(-3.45 + i * 2.3, 2.35, 2.35);
+      awn.rotation.x = 0.35;
+      g.add(awn);
     }
+    g.add(signBoard(3.4, 0.45, 'ทาวน์โฮม', '#f5efe0', '#8a4a2e').translateY(4.85));
     return g;
   });
 
@@ -481,12 +537,15 @@
       g.add(balc);
     }
     g.add(box(1.5, 2.5, 0.3, 0x4fc3f7, { y: 0, z: 4.15 })); // ชั้นลอยหน้าอาคาร
+    g.add(signBoard(4.5, 0.7, 'คอนโด', '#37474f', '#4fc3f7').translateY(3.3).translateZ(4.3));
     return g;
   });
 
   def('apartment', 'อพาร์ตเมนต์', 'ที่อยู่อาศัย', 17, function (R) {
     var g = new THREE.Group();
-    g.add(box(10, 15, 7, 0xdfd6c2));
+    var body = new THREE.Mesh(new THREE.BoxGeometry(10, 15, 7), brickMats[3]);   // อิฐซีเมนต์บล็อก
+    body.position.y = 7.5;
+    g.add(body);
     for (var f = 0; f < 5; f++) {
       g.add(box(10.2, 0.2, 7.2, 0xb0a890, { y: 3 * f }));
       for (var u = -1; u <= 1; u++) {
@@ -494,17 +553,18 @@
       }
     }
     g.add(box(10.4, 0.5, 7.4, 0x7d8894, { y: 15 }));
+    g.add(signBoard(3.6, 0.55, 'อพาร์ตเมนต์', '#7d8894', '#ffffff').translateY(0.5).translateZ(3.55));
     return g;
   });
 
   def('oldcommunity', 'ชุมชนเก่า', 'ที่อยู่อาศัย', 5, function (R) {
     var g = new THREE.Group();
-    var mats = [0x8d6e63, 0x795548, 0x8a6d5c];
     for (var i = 0; i < 5; i++) {
-      var b = box(3.6, 2.6 + (i % 2) * 0.8, 3.2, mats[i % 3]);
-      b.position.set(-4 + i * 2.1, 0, (i % 2) * 1.2);
+      var b = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.6 + (i % 2) * 0.8, 3.2), brickMats[2]); // อิฐโทนน้ำตาลเก่า
+      b.position.set(-4 + i * 2.1, (2.6 + (i % 2) * 0.8) / 2, (i % 2) * 1.2);
       g.add(b);
-      var rf = box(3.8, 0.35, 3.5, 0x5d4037, { x: -4 + i * 2.1, y: 2.6 + (i % 2) * 0.8, z: (i % 2) * 1.2 });
+      var rf = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.35, 3.5), metalRoofMats[2]);
+      rf.position.set(-4 + i * 2.1, 2.6 + (i % 2) * 0.8 + 0.175, (i % 2) * 1.2);
       g.add(rf);
     }
     return g;
@@ -546,9 +606,11 @@
   def('kindergarten', 'โรงเรียนอนุบาล', 'การศึกษา', 5, function (R) {
     var g = new THREE.Group();
     g.add(box(8, 3.2, 5, 0xffe082));                       // ตัวอาคารสีเหลืองสด
-    g.add(box(8.4, 0.4, 5.4, 0xff7043, { y: 3.2 }));       // หลังคาส้ม
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.4, 5.4), metalRoofMats[0]));   // หลังคาเมทัลสีแดง
+    g.children[g.children.length - 1].position.y = 3.4;
     g.add(box(2, 1.5, 0.2, 0x4fc3f7, { x: -2, y: 1, z: 2.6 }));
     g.add(box(1.2, 2, 0.15, 0xef5350, { x: 2, y: 0, z: 2.55 }));
+    g.add(signBoard(4.5, 0.55, 'อนุบาล', '#ff7043', '#ffffff').translateY(3.9));
     // ม้าโยก + ชิงช้าสีสดใส
     var horse = box(1.4, 0.7, 0.4, 0x66bb6a, { y: 0.4, x: 0, z: 3.6 });
     g.add(horse);
@@ -569,6 +631,7 @@
     }
     g.add(box(12.4, 0.4, 6.4, 0xc9a86a, { y: 6.4 }));
     g.add(box(1.6, 2.2, 0.2, 0x6b4a2e, { y: 0, z: 3.1 })); // ประตูกลาง
+    g.add(signBoard(5, 0.6, 'โรงเรียนประถม', '#42a5f5', '#ffffff').translateY(7.1));
     g.add(box(0.4, 4.5, 0.4, 0xdddddd, { x: 7, y: 0, z: 0 })); // เสาธง
     var flag = box(1.2, 0.7, 0.06, 0xd94f4f, { x: 7.6, y: 4.2, z: 0 });
     g.add(flag);
@@ -585,6 +648,7 @@
       }
     }
     g.add(box(14.6, 0.5, 7.4, 0x8a939c, { y: 9.6 }));
+    g.add(signBoard(5.5, 0.6, 'โรงเรียนมัธยม', '#1a3a6a', '#ffffff').translateY(10.3));
     g.add(box(0.4, 6, 0.4, 0xdddddd, { x: 9, y: 0, z: 2 })); // เสาธงชาติ
     // สนามบาสหน้าโรงเรียน
     var court = box(8, 0.15, 5, 0xc76b4a, { x: 0, y: 0, z: 6.5 });
@@ -596,10 +660,11 @@
 
   def('university', 'มหาวิทยาลัย', 'การศึกษา', 14, function (R) {
     var g = new THREE.Group();
-    var b1 = box(10, 13, 7, 0xe3dcc8); b1.position.x = -6; g.add(b1);
-    var b2 = box(8, 9, 6, 0xd8d0b8); b2.position.x = 6; g.add(b2);
+    var b1 = new THREE.Mesh(new THREE.BoxGeometry(10, 13, 7), brickMats[3]); b1.position.set(-6, 6.5, 0); g.add(b1);
+    var b2 = new THREE.Mesh(new THREE.BoxGeometry(8, 9, 6), brickMats[0]); b2.position.set(6, 4.5, 0); g.add(b2);
     g.add(box(10.4, 0.5, 7.4, 0x8a939c, { x: -6, y: 13 }));
     g.add(box(8.4, 0.5, 6.4, 0x8a939c, { x: 6, y: 9 }));
+    g.add(signBoard(4.6, 0.6, 'มหาวิทยาลัย', '#1a3a6a', '#ffd54f').translateY(13.6).translateX(-6));
     return g;
   });
 
@@ -610,7 +675,7 @@
     g.add(box(2.4, 3.4, 0.3, 0x4fc3f7, { y: 0, z: 4.1 }));   // กระจกหน้าใหญ่
     g.add(cyl(0.4, 0.4, 7, 0xd9d2bd, { x: -6.5, y: 0 }));     // เสาแกะสลัก
     g.add(cyl(0.4, 0.4, 7, 0xd9d2bd, { x: 6.5, y: 0 }));
-    g.add(box(4, 1.2, 0.3, 0x8a6d3b, { y: 8, z: 0 }));        // ป้าย
+    g.add(signBoard(5.5, 0.9, 'ห้องสมุด', '#4a6a8a', '#ffffff').translateY(8.1));
     return g;
   });
 
@@ -619,7 +684,7 @@
     g.add(box(9, 5.5, 6, 0xdcead8));
     g.add(box(9.4, 0.4, 6.4, 0x66a06a, { y: 5.5 }));
     g.add(box(2, 2.4, 0.2, 0x4fc3f7, { y: 0, z: 3.1 }));
-    g.add(box(3, 1, 0.25, 0x2e7d32, { y: 6, z: 0 }));  // ป้ายเขียว
+    g.add(signBoard(4, 0.55, 'ศูนย์การเรียนรู้', '#2e7d32', '#ffffff').translateY(6.2));
     return g;
   });
 
@@ -631,9 +696,14 @@
     g.add(box(14, 24, 10, 0xf4f7f9));                          // ตึกสูงขาว
     g.add(box(16, 4, 12, 0xe2ebee, { y: 0 }));                 // ฐานฉุกเฉิน
     g.add(box(3.2, 2.6, 0.3, 0xd94f4f, { y: 0, z: 6.15 }));    // ประตูฉุกเฉินแดง
-    g.add(box(1.6, 1.6, 0.3, 0xffffff, { x: 5, y: 25, z: 0 })); // กาชาด
-    g.add(box(0.8, 0.8, 0.4, 0xd94f4f, { x: 5, y: 25.2, z: 0.15 }));
-    g.add(box(0.8, 0.8, 0.4, 0xd94f4f, { x: 5, y: 25.2, z: -0.15 }));
+    g.add(signBoard(7, 0.8, 'โรงพยาบาล', '#ffffff', '#d94f4f').translateY(4.6).translateZ(6.05));
+    // กาชาดเรืองแสงบนยอด (สัญลักษณ์ชัดสุด)
+    var cross = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 0.4), medicalMat);
+    cross.position.set(5, 25, 0);
+    g.add(cross);
+    var crossGlow = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 0.15), emissiveRedMat);
+    crossGlow.position.set(5, 25, 0.26);
+    g.add(crossGlow);
     for (var f = 0; f < 8; f++) {
       g.add(box(14.2, 0.2, 10.2, 0xcfd8dc, { y: 4 + f * 2.8 }));
     }
@@ -646,7 +716,7 @@
     g.add(box(11, 18, 9, 0xeef3f6));
     g.add(box(11.4, 1, 9.4, 0x4fc3f7, { y: 18 }));             // กระจกฟ้าชั้นบน
     g.add(box(4, 2, 0.3, 0x1565c0, { y: 0, z: 4.6 }));
-    g.add(box(2.4, 1, 0.4, 0x4fc3f7, { x: 0, y: 19.5, z: 0 })); // ป้ายฟ้า
+    g.add(signBoard(5, 0.7, 'โรงพยาบาลเอกชน', '#1565c0', '#ffffff').translateY(19.4));
     return g;
   });
 
@@ -654,8 +724,7 @@
     var g = new THREE.Group();
     g.add(box(6, 3.5, 5, 0xf7f4ee));
     g.add(box(6.4, 0.4, 5.4, 0x90a4ae, { y: 3.5 }));
-    g.add(box(1.8, 1, 0.2, 0xffffff, { y: 3.9, z: 0 }));       // ป้ายขาว
-    g.add(box(0.5, 0.5, 0.3, 0xd94f4f, { x: 1.5, y: 3.9, z: 0.15 }));
+    g.add(signBoard(3.4, 0.5, 'คลินิก', '#ffffff', '#d94f4f').translateY(3.95));
     g.add(box(1.2, 2, 0.15, 0x8fc5e0, { x: -1.5, y: 0, z: 2.55 }));
     return g;
   });
@@ -664,7 +733,7 @@
     var g = new THREE.Group();
     g.add(box(5, 3, 4, 0xeef7ee));
     g.add(box(5.4, 0.35, 4.4, 0x66bb6a, { y: 3 }));
-    g.add(box(2.2, 0.8, 0.2, 0x2e7d32, { y: 3.4, z: 0 }));     // ป้ายเขียว
+    g.add(signBoard(3, 0.5, 'ร้านยา', '#2e7d32', '#ffffff').translateY(3.45));
     g.add(box(1.2, 0.6, 0.3, 0xffffff, { x: 1.5, y: 3.4, z: 0.16 })); // กากบาท
     return g;
   });
@@ -673,7 +742,7 @@
     var g = new THREE.Group();
     g.add(box(6, 3, 5, 0xf3ece0));
     g.add(box(6.4, 0.35, 5.4, 0xa1887f, { y: 3 }));
-    g.add(box(2, 0.8, 0.2, 0x5d4037, { y: 3.3, z: 0 }));
+    g.add(signBoard(3.4, 0.5, 'คลินิกสัตว์', '#5d4037', '#ffca28').translateY(3.35));
     g.add(box(0.5, 0.4, 0.3, 0xffca28, { x: 1.2, y: 3.3, z: 0.16 })); // อุ้งเท้า
     return g;
   });
@@ -685,7 +754,7 @@
     var g = new THREE.Group();
     g.add(box(10, 6, 7, 0xe8e0d0));
     g.add(box(10.4, 0.4, 7.4, 0x4a5a6a, { y: 6 }));
-    g.add(box(4, 1.1, 0.25, 0x1a3a6a, { y: 6.5, z: 0 }));      // ป้ายน้ำเงิน
+    g.add(signBoard(4.5, 0.7, 'สถานีตำรวจ', '#1a3a6a', '#ffffff').translateY(6.55));
     g.add(box(2, 2.4, 0.2, 0x8fc5e0, { y: 0, z: 3.6 }));
     g.add(cyl(0.25, 0.25, 7, 0x9aa7b0, { x: -6, y: 0 }));      // เสาธงตำรวจ
     g.add(box(1.4, 0.9, 0.08, 0x1a3a6a, { x: -5.3, y: 5.6, z: 0 }));
@@ -695,9 +764,16 @@
   def('fireStation', 'สถานีดับเพลิง', 'ราชการ', 8, function (R) {
     var g = new THREE.Group();
     g.add(box(11, 5.5, 7, 0xd94f4f));                          // ตัวแดงโดดเด่น
-    g.add(box(11.4, 0.4, 7.4, 0x8a2a2a, { y: 5.5 }));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(11.4, 0.4, 7.4), metalRoofMats[0]));
+    g.children[g.children.length - 1].position.y = 5.7;
     g.add(box(3, 3.2, 0.3, 0x333333, { x: -3, y: 0, z: 3.6 })); // ประตูรถดับเพลิง
     g.add(box(3, 3.2, 0.3, 0x333333, { x: 1, y: 0, z: 3.6 }));
+    // แถบเตือนขาว-ดำขอบประตู (สัญลักษณ์สถานีดับเพลิง)
+    [-3, 1].forEach(function (dx) {
+      g.add(box(0.18, 3.2, 0.12, 0xffffff, { x: dx - 1.6, y: 0, z: 3.78 }));
+      g.add(box(0.18, 3.2, 0.12, 0x222222, { x: dx + 1.6, y: 0, z: 3.78 }));
+    });
+    g.add(signBoard(4.5, 0.6, 'ดับเพลิง', '#d94f4f', '#ffffff').translateY(6.2));
     g.add(cyl(0.3, 0.3, 9, 0xcccccc, { x: 6.5, y: 0 }));
     g.add(box(0.5, 0.5, 0.5, 0xd94f4f, { x: 6.5, y: 9, z: 0 })); // หอสูง
     return g;
@@ -710,7 +786,7 @@
     for (var i = 0; i < 6; i++) {
       g.add(cyl(0.45, 0.45, 8, 0xf7f4ec, { x: -5 + i * 2, y: 0, z: 4.2 }));
     }
-    g.add(box(4, 1.4, 0.3, 0x8a6d3b, { y: 9.4, z: 0 }));       // ป้ายทอง
+    g.add(signBoard(3.6, 0.65, 'ศาล', '#8a6d3b', '#ffd54f').translateY(9.4));
     g.add(box(2.5, 2.2, 0.4, 0xd9d2bd, { y: 9, x: 0, z: 0 }));  // ขอบฟ้า
     return g;
   });
@@ -719,7 +795,7 @@
     var g = new THREE.Group();
     g.add(box(11, 6.5, 7, 0xe8e4d4));
     g.add(box(11.4, 0.4, 7.4, 0x8a939c, { y: 6.5 }));
-    g.add(box(4.5, 1, 0.25, 0x8a6d3b, { y: 7, z: 0 }));
+    g.add(signBoard(4.5, 0.6, 'ที่ว่าการอำเภอ', '#8a6d3b', '#ffffff').translateY(7.1));
     g.add(box(6, 3, 0.2, 0x9fd4e8, { y: 0.8, z: 3.6 }));
     return g;
   });
@@ -732,7 +808,12 @@
     g.add(box(18, 14, 12, 0xe8d5e0));
     g.add(box(18.5, 0.6, 12.5, 0x9c6a8a, { y: 14 }));
     g.add(box(6, 4, 0.4, 0x4fc3f7, { y: 0, z: 6.2 }));         // กระจกหน้า
-    g.add(box(5, 1.2, 0.3, 0x9c27b0, { y: 15, z: 0 }));
+    g.add(signBoard(7, 1, 'ห้างสรรพสินค้า', '#9c27b0', '#ffffff').translateY(15.2));
+    // ผ้าใบกันแดดเหนือกระจกหน้า
+    var mallAw = new THREE.Mesh(new THREE.BoxGeometry(7, 0.1, 2), awningMats[3]);
+    mallAw.position.set(0, 4.6, 7);
+    mallAw.rotation.x = 0.3;
+    g.add(mallAw);
     g.add(box(1.5, 4, 0.3, 0xef5350, { x: 6, y: 0, z: 6.2 })); // ตกแต่ง
     return g;
   });
@@ -740,9 +821,10 @@
   def('supermarket', 'ซูเปอร์มาร์เก็ต', 'ค้าขาย', 7, function (R) {
     var g = new THREE.Group();
     g.add(box(14, 5, 9, 0xdceee8));
-    g.add(box(14.5, 0.4, 9.5, 0x2e8b57, { y: 5 }));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(14.5, 0.4, 9.5), metalRoofMats[2]));
+    g.children[g.children.length - 1].position.y = 5.2;
     g.add(box(5, 2, 0.3, 0x4fc3f7, { y: 0, z: 4.6 }));
-    g.add(box(6, 1, 0.3, 0x1b5e20, { y: 5.4, z: 0 }));
+    g.add(signBoard(6, 0.7, 'ซูเปอร์มาร์เก็ต', '#1b5e20', '#ffffff').translateY(5.8));
     // ลานจอดหน้าร้าน
     var lot = box(14, 0.1, 4, 0x555a60, { y: 0, z: 6.5 });
     g.add(lot);
@@ -751,13 +833,14 @@
 
   def('market', 'ตลาดสด', 'ค้าขาย', 5, function (R) {
     var g = new THREE.Group();
-    // หลังคาโค้งคลุมทั้งตลาด
+    // หลังคาโค้งคลุมทั้งตลาด — ผ้าใบสีแดงมี texture
     var roof = new THREE.Mesh(
       new THREE.CylinderGeometry(4, 4, 16, 16, 1, true, 0, Math.PI),
-      new THREE.MeshStandardMaterial({ color: 0xef5350, roughness: 0.6, side: THREE.DoubleSide })
+      TX.ObjMat('awningRed', { roughness: 0.7, side: THREE.DoubleSide, repX: 4, repY: 1 })
     );
     roof.rotation.z = Math.PI / 2;
     roof.position.y = 3.6;
+    roof.castShadow = true;
     g.add(roof);
     for (var s = -1; s <= 1; s += 2) {
       g.add(box(0.4, 3.6, 0.4, 0x8d9ca8, { x: 0, y: 0, z: s * 3.8 }));
@@ -766,6 +849,7 @@
       g.add(box(2, 1.6, 1.2, [0xffca28, 0x66bb6a, 0xef5350, 0x42a5f5, 0xffe14f][i], { x: -6 + i * 3, y: 0.6, z: 0 }));
       // แผงขายของ
     }
+    g.add(signBoard(4.5, 0.6, 'ตลาดสด', '#ef5350', '#ffffff').translateY(5.4));
     return g;
   });
 
@@ -773,10 +857,14 @@
     var g = new THREE.Group();
     var colors = [0xef5350, 0x42a5f5, 0xffca28, 0x66bb6a, 0xab47bc, 0xff7043];
     for (var i = 0; i < 5; i++) {
-      var sh = box(3, 3, 4, colors[i % colors.length]);
-      sh.position.x = -6 + i * 3;
+      var sh = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 4), brickMats[i % brickMats.length]);   // ผนังอิฐคนละโทน
+      sh.position.set(-6 + i * 3, 1.5, 0);
       g.add(sh);
-      g.add(box(2.6, 0.3, 4.4, 0x37474f, { x: -6 + i * 3, y: 3 }));
+      // ผ้าใบกันแดดสลับสี — เห็นชัดว่าเป็นแถวร้านค้า
+      var awn = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.08, 1.1), awningMats[i % awningMats.length]);
+      awn.position.set(-6 + i * 3, 2.1, 2.4);
+      awn.rotation.x = 0.4;
+      g.add(awn);
       g.add(box(2, 1.4, 0.15, 0xfff8e1, { x: -6 + i * 3, y: 0.8, z: 2.08 }));
     }
     return g;
@@ -786,7 +874,7 @@
     var g = new THREE.Group();
     g.add(box(5, 2.8, 4, 0xffe0b2));
     g.add(box(5.4, 0.3, 4.4, 0xef6c00, { y: 2.8 }));
-    g.add(box(2.5, 0.7, 0.2, 0xbf360c, { y: 3.1, z: 0 }));
+    g.add(signBoard(2.8, 0.45, 'อาหารตามสั่ง', '#ef6c00', '#ffffff').translateY(3.2));
     g.add(box(1.2, 1.8, 0.15, 0x8d6e63, { y: 0, z: 2.05 }));
     return g;
   });
@@ -795,7 +883,7 @@
     var g = new THREE.Group();
     g.add(box(4.5, 2.6, 3.5, 0xfff3e0));
     g.add(box(4.9, 0.3, 3.9, 0xd84315, { y: 2.6 }));
-    g.add(box(2.2, 0.7, 0.2, 0xbf360c, { y: 2.9, z: 0 }));
+    g.add(signBoard(2.4, 0.45, 'ก๋วยเตี๋ยว', '#d84315', '#fff3e0').translateY(3.05));
     g.add(box(1.6, 0.9, 0.8, 0xffca28, { y: 0.4, x: 3, z: 0.5 })); // โต๊ะนอก
     g.add(cyl(0.08, 0.08, 0.8, 0x8d9ca8, { x: 3, y: 0, z: 1.2 }));
     return g;
@@ -805,14 +893,15 @@
     var g = new THREE.Group();
     g.add(box(6, 3, 4.5, 0xe8d5c0));
     g.add(box(6.4, 0.35, 4.9, 0x6d4c41, { y: 3 }));
-    g.add(box(2.6, 0.8, 0.2, 0x4e342e, { y: 3.3, z: 0 }));
-    // ร่มกับโต๊ะนอกอาคาร
+    g.add(signBoard(2.6, 0.5, 'คาเฟ่', '#4e342e', '#d7ccc8').translateY(3.45));
+    // ร่มกับโต๊ะนอกอาคาร (ผ้าใบลายสลับ)
     for (var i = 0; i < 2; i++) {
       var umbrella = new THREE.Mesh(
         new THREE.ConeGeometry(1.3, 0.7, 8),
-        new THREE.MeshStandardMaterial({ color: i ? 0xef5350 : 0x42a5f5, roughness: 0.7 })
+        TX.ObjMat(i ? 'awningRed' : 'awningBlue', { roughness: 0.75 })
       );
       umbrella.position.set(2 + i * 2.4, 2.1, 3.2);
+      umbrella.castShadow = true;
       g.add(umbrella);
       g.add(cyl(0.06, 0.06, 2, 0x8d9ca8, { x: 2 + i * 2.4, y: 0.1, z: 3.2 }));
       g.add(cyl(0.5, 0.5, 0.08, 0x6d4c41, { x: 2 + i * 2.4, y: 0.6, z: 3.2 }));
@@ -825,7 +914,7 @@
     var g = new THREE.Group();
     g.add(box(5, 2.8, 4, 0xfde8d0));
     g.add(box(5.4, 0.3, 4.4, 0xe8a87c, { y: 2.8 }));
-    g.add(box(2.4, 0.7, 0.2, 0x8d5524, { y: 3.1, z: 0 }));
+    g.add(signBoard(2.6, 0.45, 'เบเกอรี่', '#e8a87c', '#5d3a1a').translateY(3.15));
     g.add(box(0.8, 0.5, 0.3, 0xd94f4f, { x: 1.2, y: 3.2, z: 0.16 })); // คัพเค้ก
     return g;
   });
@@ -834,7 +923,7 @@
     var g = new THREE.Group();
     g.add(box(4.5, 2.6, 3.5, 0xfce4ec));
     g.add(box(4.9, 0.3, 3.9, 0xf06292, { y: 2.6 }));
-    g.add(box(2.2, 0.7, 0.2, 0xc2185b, { y: 2.9, z: 0 }));
+    g.add(signBoard(2.4, 0.45, 'ไอศกรีม', '#f06292', '#ffffff').translateY(3.05));
     // โคนไอศกรีมยักษ์บนหลังคา
     g.add(cone(0.8, 1.8, 0xf8bbd0, { y: 2.9, x: 0, z: 0 }));
     g.add(sphere(0.55, 0xf48fb1, { y: 4.5, x: 0, z: 0 }));
@@ -846,7 +935,12 @@
     g.add(box(7, 3, 5, 0xf5e6d0));
     g.add(box(7.4, 0.4, 5.4, 0xd94330, { y: 3 }));
     g.add(box(2.4, 1.6, 0.3, 0xffca28, { y: 0.6, z: 2.6 }));   // M สีเหลือง
-    g.add(box(4, 0.9, 0.25, 0xd94330, { y: 3.4, z: 0 }));
+    g.add(signBoard(3.4, 0.55, 'ฟาสต์ฟู้ด', '#d94330', '#ffca28').translateY(3.6));
+    // ผ้าใบกันแดดเหนือหน้าต่างสั่งของ
+    var ffAw = new THREE.Mesh(new THREE.BoxGeometry(5, 0.08, 1.2), awningMats[3]);
+    ffAw.position.set(0, 1.7, 3.1);
+    ffAw.rotation.x = 0.35;
+    g.add(ffAw);
     return g;
   });
 
@@ -857,7 +951,7 @@
     for (var i = 0; i < 4; i++) {
       g.add(cyl(0.5, 0.5, 7, 0xf0f4ec, { x: -3.6 + i * 2.4, y: 0, z: 4.2 }));
     }
-    g.add(box(4, 1, 0.3, 0x1a3a6a, { y: 7.5, z: 0 }));          // ป้าย
+    g.add(signBoard(3, 0.6, 'ธนาคาร', '#1a3a6a', '#ffd54f').translateY(7.6));
     // ตู้ ATM หน้าอาคาร
     g.add(box(1, 1.8, 0.8, 0x1a3a6a, { x: 6.5, y: 0, z: 2 }));
     g.add(box(0.7, 0.5, 0.2, 0x4fc3f7, { x: 6.5, y: 1, z: 2.4 }));
@@ -875,6 +969,7 @@
       g.add(box(10.2, 0.35, 10.2, 0x6a7680, { y: f * 3, metal: 0.3, rough: 0.5 })); // ขอบชั้นคอนกรีต
     }
     g.add(box(10.4, 0.6, 10.4, 0x546e7a, { y: h }));
+    g.add(signBoard(4, 0.7, 'สำนักงาน', '#546e7a', '#ffffff').translateY(1).translateZ(5.1));
     g.add(box(1.5, 4, 0.4, 0xd94f4f, { y: h, x: 0, z: 0 }));    // เสาอากาศ
     return g;
   });
@@ -884,7 +979,7 @@
     g.add(box(9, 8, 7, 0xd0e0e8));
     g.add(box(9.4, 0.4, 7.4, 0x37474f, { y: 8 }));
     g.add(box(3.5, 2.5, 0.3, 0x4fc3f7, { y: 0, z: 3.6 }));
-    g.add(box(3.5, 0.9, 0.25, 0x00838f, { y: 8.4, z: 0 }));
+    g.add(signBoard(3.8, 0.55, 'Co-Working', '#00838f', '#ffffff').translateY(8.5));
     return g;
   });
 
@@ -895,7 +990,7 @@
     var g = new THREE.Group();
     g.add(box(4.5, 2.8, 3.5, 0xf0e0c8));
     g.add(box(4.9, 0.3, 3.9, 0xc0392b, { y: 2.8 }));
-    g.add(box(2, 0.7, 0.2, 0x8d6e63, { y: 3.1, z: 0 }));
+    g.add(signBoard(2.4, 0.45, 'ของฝาก', '#c0392b', '#ffe082').translateY(3.15));
     return g;
   });
 
@@ -903,6 +998,7 @@
     var g = new THREE.Group();
     g.add(cyl(2.2, 2.6, 8, 0xe8e0d0, { y: 0 }));               // เสาหินโค้ง
     g.add(box(6, 0.5, 6, 0xd9d2bd, { y: 8 }));                  // ยอด
+    g.add(signBoard(3.6, 0.5, 'จุดถ่ายรูป', '#4a6a8a', '#ffffff').translateY(9.2));
     g.add(box(0.3, 2, 0.3, 0x8d9ca8, { y: 8.5, x: 0, z: 0 }));
     g.add(box(1.6, 1, 0.06, 0xd94f4f, { x: 0.9, y: 9, z: 0 })); // ธง
     g.add(tree(0.8, R));
@@ -914,7 +1010,7 @@
     var g = new THREE.Group();
     g.add(box(5, 2.8, 4, 0xe3f2fd));
     g.add(box(5.4, 0.3, 4.4, 0x1976d2, { y: 2.8 }));
-    g.add(box(2.4, 0.7, 0.2, 0x0d47a1, { y: 3.1, z: 0 }));
+    g.add(signBoard(2.6, 0.45, 'ซักรีด', '#0d47a1', '#ffffff').translateY(3.15));
     g.add(sphere(0.4, 0xffffff, { x: 1.2, y: 3.2, z: 0.16 }));  // ฟองสบู่
     return g;
   });
@@ -927,13 +1023,16 @@
     // อุโบสถหลังใหญ่หลังคาซ้อน
     g.add(box(10, 4, 6, 0xf5efe0));
     g.add(box(10.8, 0.5, 6.8, 0xc9a86a, { y: 4 }));
-    g.add(box(9, 1.2, 5.2, 0xd4af37, { y: 4.5 }));             // หลังคาซ้อนทอง
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(9, 1.2, 5.2), goldMat));   // หลังคาซ้อนทองเปลว
+    g.children[g.children.length - 1].position.y = 5.1;
     g.add(box(9.6, 0.4, 5.6, 0xc9a86a, { y: 5.7 }));
+    g.add(signBoard(3.6, 0.55, 'วัด', '#d4af37', '#5d4037').translateY(6.4));
     // เจดีย์ทรงไทย
     var chediBase = box(3.2, 2.4, 3.2, 0xf0e6c8, { x: 0, y: 0, z: 0 });
     chediBase.position.set(8, 0, 0);
     g.add(chediBase);
-    g.add(cone(2, 6, 0xd4af37, { x: 8, y: 2.4, z: 0 }));       // ยอดเจดีย์ทอง
+    g.add(new THREE.Mesh(new THREE.ConeGeometry(2, 6, 12), goldMat));      // ยอดเจดีย์ทองเปลว
+    g.children[g.children.length - 1].position.set(8, 5.4, 0);
     g.add(sphere(0.5, 0xffe082, { x: 8, y: 8.4, z: 0 }));       // ปลียอด
     // เสาธง
     g.add(cyl(0.15, 0.15, 9, 0xd9d2bd, { x: -7, y: 0 }));
@@ -945,10 +1044,18 @@
     var g = new THREE.Group();
     g.add(box(9, 5, 7, 0xf0ead6));
     g.add(box(9.6, 0.5, 7.6, 0x2e7d32, { y: 5 }));
-    // โดมใหญ่
+    // โดมใหญ่ (ทองเปลว สะท้อนแสงเด่นกลางเมือง)
     g.add(dome(2.8, 0x2e7d32, { y: 5.5, x: 0, z: 0 }));
+    var mdome = new THREE.Mesh(
+      new THREE.SphereGeometry(2.85, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+      goldMat
+    );
+    mdome.position.set(0, 6.2, 0);
+    mdome.castShadow = true;
+    g.add(mdome);
     g.add(cyl(0.1, 0.1, 1.5, 0xd4af37, { x: 0, y: 8, z: 0 }));  // เสาเรือนธง
     g.add(sphere(0.25, 0xd4af37, { x: 0, y: 9.5, z: 0 }));
+    g.add(signBoard(2.6, 0.5, 'มัสยิด', '#2e7d32', '#ffffff').translateY(4.2).translateZ(3.6));
     // หออะซานสองข้าง
     g.add(cyl(0.8, 0.9, 10, 0xf0ead6, { x: -6.5, y: 0, z: 0 }));
     g.add(dome(1.1, 0x2e7d32, { x: -6.5, y: 10, z: 0 }));
@@ -959,13 +1066,16 @@
   def('church', 'โบสถ์', 'ศาสนสถาน', 14, function (R) {
     var g = new THREE.Group();
     g.add(box(7, 5, 10, 0xf5f0e8));
-    var roof = box(7.4, 2, 10.4, 0x8a6d3b, { y: 5 });
+    var roof = new THREE.Mesh(new THREE.BoxGeometry(7.4, 2, 10.4), metalRoofMats[1]);
+    roof.position.y = 6;
+    roof.castShadow = true;
     g.add(roof);
     // หอระฆังสูง
     g.add(box(2.4, 9, 2.4, 0xf5f0e8, { x: 0, y: 0, z: -6.5 }));
     g.add(pyramid(1.9, 3, 0x8a6d3b, { x: 0, y: 9, z: -6.5 }));
     g.add(box(0.35, 0.5, 0.2, 0xd4af37, { x: 0, y: 10.4, z: -5.3 })); // กางเขนทอง
     g.add(box(0.2, 0.8, 0.2, 0xd4af37, { x: 0, y: 10, z: -5.3 }));
+    g.add(signBoard(2.2, 0.45, 'โบสถ์', '#f5f0e8', '#6d4c41').translateY(4).translateZ(5.1));
     return g;
   });
 
@@ -978,12 +1088,18 @@
     shed.position.y = 2.5;
     shed.castShadow = true;
     g.add(shed);
-    // หลังคาจั่วโรงงาน (ซอยเป็นร่อง)
+    // หลังคาจั่วโรงงาน (ซอยเป็นร่อง + สังกะสีทาสีแดงให้เด่นต่างจากโกดัง)
     for (var i = 0; i < 4; i++) {
-      var saw = box(3.4, 1.8, 9.4, 0xb0b8bc, { x: -5.2 + i * 3.5, y: 5, mat: metalMat });
-      saw.rotation.z = 0;
+      var saw = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.8, 9.4), metalRoofMats[0]);
+      saw.position.set(-5.2 + i * 3.5, 5.9, 0);
+      saw.castShadow = true;
       g.add(saw);
     }
+    // แถบเตือนส้ม-ดำรอบฐานตึก (สัญลักษณ์เขตอุตสาหกรรม)
+    var hb = new THREE.Mesh(new THREE.BoxGeometry(14.2, 0.7, 9.2), hazardMat);
+    hb.position.y = 0.35;
+    g.add(hb);
+    g.add(signBoard(4, 0.6, 'โรงงาน', '#37474f', '#ffca28').translateY(3.6).translateZ(4.6));
     g.add(cyl(1, 1, 12, 0xc9c2b8, { x: -7, y: 0, z: -3 }));     // ปล่องไฟคอนกรีต
     g.add(box(0.5, 2, 0.5, 0xd94f4f, { x: -7, y: 12, z: -3 }));
     g.add(box(3.5, 3.5, 0.3, 0x607d8b, { x: 3, y: 0, z: 4.6 }));
@@ -993,19 +1109,21 @@
   def('warehouse', 'โกดัง', 'อุตสาหกรรม', 7, function (R) {
     var g = new THREE.Group();
     g.add(box(12, 5, 8, 0x9aa8b0));
-    g.add(box(12.5, 0.4, 8.5, 0x607d8b, { y: 5 }));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(12.5, 0.4, 8.5), metalRoofMats[1]));
+    g.children[g.children.length - 1].position.y = 5.2;
     g.add(box(4, 3.8, 0.3, 0x546e7a, { y: 0, z: 4.1 }));        // ประตูม้วนใหญ่
-    g.add(box(6, 1, 0.3, 0x37474f, { y: 5.4, z: 0 }));
+    g.add(signBoard(3.6, 0.55, 'โกดัง', '#455a64', '#ffffff').translateY(5.6));
     return g;
   });
 
   def('distribution', 'ศูนย์กระจายสินค้า', 'อุตสาหกรรม', 8, function (R) {
     var g = new THREE.Group();
     g.add(box(16, 6, 10, 0xb8c4cc));
-    g.add(box(16.5, 0.5, 10.5, 0x546e7a, { y: 6 }));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(16.5, 0.5, 10.5), metalRoofMats[2]));
+    g.children[g.children.length - 1].position.y = 6.25;
     g.add(box(4.5, 4, 0.3, 0x78909c, { x: -4, y: 0, z: 5.1 }));
     g.add(box(4.5, 4, 0.3, 0x78909c, { x: 2, y: 0, z: 5.1 }));
-    g.add(box(5, 1.2, 0.3, 0x0d47a1, { y: 6.5, z: 0 }));
+    g.add(signBoard(5.5, 0.6, 'ศูนย์กระจายสินค้า', '#0d47a1', '#ffffff').translateY(6.9));
     // รถเฮลที่จอด
     var truck = box(4, 2.2, 2.2, 0xffffff, { x: 10, y: 0, z: 6 });
     g.add(truck);
@@ -1030,11 +1148,15 @@
   def('powerPlant', 'โรงไฟฟ้า', 'อุตสาหกรรม', 15, function (R) {
     var g = new THREE.Group();
     g.add(box(10, 8, 8, 0xb0bec5));
+    // แถบเตือนส้ม-ดำรอบฐาน
+    var hb = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.7, 8.2), hazardMat);
+    hb.position.y = 0.35;
+    g.add(hb);
     g.add(cyl(1.4, 1.6, 16, 0xe0e0e0, { x: -6, y: 0, z: -2 }));  // ปล่องสูง
     g.add(box(0.6, 2.5, 0.6, 0xd94f4f, { x: -6, y: 16, z: -2 })); // แถบแดงบนปล่อง
     g.add(cyl(2.5, 2.5, 0.5, 0x78909c, { y: 8, x: 3, z: 3 }));    // หอหล่อเย็น
     g.add(cone(2.6, 3, 0x90a4ae, { y: 8.5, x: 3, z: 3 }));
-    g.add(box(4, 1.2, 0.3, 0xffca28, { y: 8.4, z: 0 }));
+    g.add(signBoard(3.4, 0.6, 'โรงไฟฟ้า', '#ffca28', '#263238').translateY(8.6));
     return g;
   });
 
@@ -1043,7 +1165,7 @@
     g.add(box(8, 5, 6, 0xd0e8f0));
     g.add(cyl(2.2, 2.2, 7, 0x8ac6e0, { x: 7, y: 0, z: 0 }));    // ถังน้ำกลม
     g.add(cone(2.4, 1.6, 0x5aa0c0, { x: 7, y: 7, z: 0 }));
-    g.add(box(3.5, 1, 0.3, 0x0277bd, { y: 5.4, z: 0 }));
+    g.add(signBoard(3.2, 0.55, 'ประปา', '#0277bd', '#ffffff').translateY(5.7));
     return g;
   });
 
@@ -1053,7 +1175,7 @@
     g.add(cyl(2.5, 2.5, 1.2, 0x4a7a5a, { x: 0, y: 0, z: 5 }));  // บ่อบำบัดกลม
     g.add(cyl(2.5, 2.5, 1.2, 0x5a8a6a, { x: 6, y: 0, z: 5 }));
     g.add(cyl(2.5, 2.5, 1.2, 0x3f6a4f, { x: 3, y: 0, z: 9 }));
-    g.add(box(2, 1, 0.3, 0x2e7d32, { y: 3.2, z: 0 }));
+    g.add(signBoard(3.4, 0.5, 'บำบัดน้ำเสีย', '#2e7d32', '#ffffff').translateY(3.5));
     return g;
   });
 
@@ -1065,7 +1187,11 @@
       g.add(box(3 - i * 0.7, 0.35, 3 - i * 0.7, 0xffffff, { y: 8 + i * 4 })); // วงแหวนขาว
     }
     g.add(box(0.4, 3, 0.4, 0xb0b8bc, { y: 20 }));
-    g.add(sphere(0.4, 0xd94f4f, { x: 0, y: 23.4, z: 0 }));      // ไฟแดงยอด
+    // ไฟแดงยอดเรืองแสง (เห็นชัดกลางคืน)
+    g.add(sphere(0.45, 0xd94f4f, { x: 0, y: 23.4, z: 0 }));
+    var beacon = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 6), emissiveRedMat);
+    beacon.position.set(0, 23.4, 0);
+    g.add(beacon);
     return g;
   });
 
@@ -1074,15 +1200,19 @@
   // =====================================================================
   def('riceField', 'นาข้าว', 'เกษตรกรรม', 1.5, function (R) {
     var g = new THREE.Group();
-    var field = box(24, 0.4, 18, 0x9db84a, { y: 0 });
-    field.material.color = new THREE.Color(0x9db84a);
+    // ต้นข้าวเป็นแถว (texture จริง เห็นชัดว่าเป็นนา)
+    var field = new THREE.Mesh(new THREE.BoxGeometry(24, 0.4, 18), paddyMat);
+    field.position.y = 0.2;
+    field.receiveShadow = true;
     g.add(field);
     for (var i = 0; i < 5; i++) {
       g.add(box(24, 0.12, 0.5, 0x86a03a, { y: 0.4, z: -7.2 + i * 3.6 }));
     }
     // กระทงหลังนา
     g.add(box(3, 2, 2.5, 0x8d6e63, { x: 9, y: 0, z: 8 }));
-    g.add(box(3.6, 0.4, 3, 0x5d4037, { x: 9, y: 2, z: 8 }));
+    var hutRoof = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.4, 3), metalRoofMats[2]);
+    hutRoof.position.set(9, 2.2, 8);
+    g.add(hutRoof);
     return g;
   });
 
@@ -1100,7 +1230,9 @@
   def('farm', 'ฟาร์ม', 'เกษตรกรรม', 5, function (R) {
     var g = new THREE.Group();
     g.add(box(9, 4, 6, 0xd4763a));
-    g.add(box(9.6, 0.5, 6.6, 0x8d4e2a, { y: 4 }));              // โรงเรือน
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(9.6, 0.5, 6.6), metalRoofMats[0]));   // หลังคาเมทัลแดง
+    g.children[g.children.length - 1].position.y = 4.25;
+    g.add(signBoard(2.6, 0.45, 'ฟาร์ม', '#8d4e2a', '#ffe0b2').translateY(4.8));
     g.add(cyl(0.18, 0.18, 4, 0x8d9ca8, { x: 6, y: 0, z: 4 }));
     // รั้วลวดหนาม
     for (var i = 0; i < 6; i++) {
@@ -1116,13 +1248,15 @@
   // =====================================================================
   def('gasStation', 'ปั๊มน้ำมัน', 'บริการ', 6, function (R) {
     var g = new THREE.Group();
-    // หลังคาปั๊มแบนยกสูง
+    // หลังคาปั๊มแบนยกสูง (ขาวสะอาด มีขอบแดง)
     g.add(box(12, 0.5, 8, 0xf5f5f5, { y: 4.5 }));
+    g.add(box(12.4, 0.15, 8.4, 0xd94f4f, { y: 5 }));
     for (var i = 0; i < 3; i++) {
       g.add(cyl(0.25, 0.25, 4.5, 0xd0d4d8, { x: -4 + i * 4, y: 0, z: 2 }));
     }
     g.add(box(4, 3, 3, 0xf0f0f0, { x: 0, y: 0, z: -3.5 }));     // หลักเซียน
-    g.add(box(4.2, 0.4, 3.2, 0xd94f4f, { x: 0, y: 3, z: -3.5 }));
+    g.add(signBoard(4.2, 0.7, 'ปั๊มน้ำมัน', '#d94f4f', '#ffffff').translateY(3.6).translateZ(-3.4));
+    g.add(signBoard(3.4, 0.55, 'ปั๊มน้ำมัน', '#d94f4f', '#ffffff').translateY(5.4));
     g.add(box(1.2, 0.8, 0.5, 0xffca28, { x: -2, y: 0.8, z: 0 })); // ปั๊ม
     g.add(box(1.2, 0.8, 0.5, 0xffca28, { x: 2, y: 0.8, z: 0 }));
     g.add(cyl(0.9, 0.9, 1.4, 0xe0e0e0, { x: 7, y: 0, z: 3 }));   // ถังใต้ดินหมายเหตุ: ที่เห็นคือถังเหนือดิน
@@ -1136,18 +1270,27 @@
       g.add(cyl(0.22, 0.22, 3.5, 0x90a4ae, { x: -2 + i * 4, y: 0, z: 1 }));
     }
     g.add(box(0.7, 1.4, 0.5, 0x263238, { x: -1.5, y: 0, z: 0 }));
-    g.add(box(0.5, 0.35, 0.15, 0x66bb6a, { x: -1.5, y: 0.7, z: 0.28 })); // จอ LED
+    var led1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.15), emissiveYellowMat);   // จอ LED เรืองแสง
+    led1.position.set(-1.5, 0.87, 0.3);
+    g.add(led1);
     g.add(box(0.7, 1.4, 0.5, 0x263238, { x: 1.5, y: 0, z: 0 }));
-    g.add(box(0.5, 0.35, 0.15, 0x66bb6a, { x: 1.5, y: 0.7, z: 0.28 }));
+    var led2 = led1.clone(); led2.position.set(1.5, 0.87, 0.3);
+    g.add(led2);
+    g.add(signBoard(3.2, 0.5, 'EV ชาร์จ', '#00838f', '#b2ebf2').translateY(3.9));
     return g;
   });
 
   def('carRepair', 'ร้านซ่อมรถ', 'บริการ', 5, function (R) {
     var g = new THREE.Group();
     g.add(box(8, 4, 6, 0x90a4ae));
-    g.add(box(8.4, 0.4, 6.4, 0x546e7a, { y: 4 }));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.4, 6.4), metalRoofMats[1]));
+    g.children[g.children.length - 1].position.y = 4.2;
     g.add(box(3, 2.8, 0.3, 0x455a64, { y: 0, z: 3.1 }));        // ประตูโรงรถ
-    g.add(box(4, 0.8, 0.3, 0xffca28, { y: 4.3, z: 0 }));
+    // แถบเตือนขอบประตูโรงรถ (เข้าทางรถ)
+    var hz = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.35, 0.12), hazardMat);
+    hz.position.set(0, 2.9, 3.24);
+    g.add(hz);
+    g.add(signBoard(3, 0.5, 'ซ่อมรถ', '#ffca28', '#263238').translateY(4.6));
     // ยางรถกองหน้าร้าน
     g.add(cyl(0.7, 0.7, 0.5, 0x263238, { x: 5.5, y: 0, z: 3.5 }));
     g.add(cyl(0.7, 0.7, 0.5, 0x263238, { x: 5.5, y: 0.5, z: 3.5 }));
@@ -1157,12 +1300,15 @@
   def('buildingSupply', 'ร้านวัสดุก่อสร้าง', 'บริการ', 6, function (R) {
     var g = new THREE.Group();
     g.add(box(10, 4.5, 7, 0xffcc80));
-    g.add(box(10.4, 0.5, 7.4, 0xef6c00, { y: 4.5 }));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(10.4, 0.5, 7.4), metalRoofMats[0]));
+    g.children[g.children.length - 1].position.y = 4.75;
     g.add(box(3, 2.5, 0.3, 0x8d6e63, { y: 0, z: 3.6 }));
-    g.add(box(5, 1, 0.3, 0xe65100, { y: 5, z: 0 }));
-    // กองทราย+อิฐ
+    g.add(signBoard(4.5, 0.55, 'วัสดุก่อสร้าง', '#e65100', '#ffffff').translateY(5.3));
+    // กองทราย+อิฐ (อิฐใช้ texture จริง)
     g.add(box(2, 1, 2, 0xd9c98a, { x: 7, y: 0, z: 3 }));
-    g.add(box(1.8, 0.8, 1, 0xb5502d, { x: 7, y: 1.2, z: 3 }));
+    var brickPile = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 1), brickMats[0]);
+    brickPile.position.set(7, 1.6, 3);
+    g.add(brickPile);
     return g;
   });
 
@@ -1225,6 +1371,12 @@
     g.add(cyl(0.05, 0.05, 1, 0xeeeeee, { x: 0, y: 0, z: -3.5 }));
     g.add(cyl(0.05, 0.05, 1, 0xeeeeee, { x: 0, y: 0, z: 3.5 }));
     g.add(box(0.06, 0.95, 7.2, 0xe8e8e8, { x: 0, y: 0.5, z: 0 }));
+    // กั้นลมรอบสนาม (เขียวหม่น)
+    var fence = new THREE.Mesh(new THREE.BoxGeometry(14.4, 2.2, 0.1), metalRoofMats[2]);
+    fence.position.set(0, 1.2, -4.2);
+    g.add(fence);
+    var fence2 = fence.clone(); fence2.position.z = 4.2;
+    g.add(fence2);
     return g;
   });
 
@@ -1248,7 +1400,7 @@
     g.add(box(10, 5, 8, 0xb0bec5));
     g.add(box(10.4, 0.5, 8.4, 0x546e7a, { y: 5 }));
     g.add(box(3, 2.4, 0.3, 0x4fc3f7, { y: 0, z: 4.2 }));
-    g.add(box(4, 1, 0.3, 0xd94f4f, { y: 5.4, z: 0 }));
+    g.add(signBoard(2.8, 0.55, 'ฟิตเนส', '#d94f4f', '#ffffff').translateY(5.7));
     for (var w = -2; w <= 2; w++) {
       g.add(box(0.8, 3.4, 0.15, 0x8fc5e0, { x: w * 1.7, y: 1, z: 4.08 }));
     }
@@ -1262,11 +1414,16 @@
     var g = new THREE.Group();
     g.add(box(14, 9, 11, 0x4a4a52));
     g.add(box(14.4, 0.5, 11.4, 0x2a2a30, { y: 9 }));
-    g.add(box(6, 1.8, 0.4, 0xffd54f, { y: 0.9, z: 5.6 }));    // ป้ายไฟ
+    var marquee = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.9, 0.5), emissiveYellowMat);   // ป้ายไฟเรืองแสง
+    marquee.position.set(0, 1.2, 5.55);
+    g.add(marquee);
+    g.add(signBoard(4.5, 0.7, 'โรงภาพยนตร์', '#212121', '#ffd54f').translateY(3.2).translateZ(5.6));
     g.add(box(1.1, 1.3, 0.4, 0x212121, { x: 2, y: 1.15, z: 5.6 }));
     g.add(box(1.1, 1.3, 0.4, 0x212121, { x: 4, y: 1.15, z: 5.6 }));
     g.add(box(6, 2.6, 0.3, 0x8d6e63, { y: 0, z: 5.65 }));
-    g.add(box(3, 2.4, 3, 0xd94f4f, { x: 0, y: 9.3, z: 0 }));   // ป้ายหลังคา
+    var roofSign = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.4, 3.1), emissiveRedMat);   // ป้ายหลังคาเรืองแสง
+    roofSign.position.set(0, 10.5, 0);
+    g.add(roofSign);
     return g;
   });
 
@@ -1277,7 +1434,7 @@
     g.add(box(13.5, 3, 4, 0xd94f4f, { y: 0, z: 7.6 }));        // เวทียื่น
     g.add(box(0.4, 1.4, 0.4, 0xf0ead8, { x: -5, y: 2.2, z: 7.6 }));
     g.add(box(0.4, 1.4, 0.4, 0xf0ead8, { x: 5, y: 2.2, z: 7.6 }));
-    g.add(box(6, 0.8, 0.3, 0xffd54f, { y: 3.4, z: 9.6 }));
+    g.add(signBoard(4.5, 0.7, 'โรงละคร', '#8a2a2a', '#ffd54f').translateY(3.4).translateZ(9.5));
     return g;
   });
 
@@ -1288,7 +1445,7 @@
     for (var i = 0; i < 5; i++) {
       g.add(cyl(0.5, 0.5, 7, 0xf7f4ec, { x: -4.5 + i * 2.25, y: 0, z: 4.4 }));
     }
-    g.add(box(3, 2, 0.3, 0x8a6d3b, { y: 0, z: 4.25 }));
+    g.add(signBoard(3.8, 0.6, 'พิพิธภัณฑ์', '#8a6d3b', '#ffffff').translateY(8.4));
     return g;
   });
 
@@ -1297,6 +1454,7 @@
     g.add(box(9, 5.5, 7, 0xf5f5f0));
     g.add(box(9.4, 0.5, 7.4, 0xe0e0d8, { y: 5.5 }));
     g.add(box(5, 3, 0.25, 0x9e9e9e, { y: 1.4, z: 3.62 }));
+    g.add(signBoard(2.8, 0.5, 'หอศิลป์', '#37474f', '#ffffff').translateY(6.2));
     g.add(cyl(0.3, 0.5, 2, 0x90a4ae, { x: -3, y: 0, z: 4 }));   // ประติมากรรม
     g.add(sphere(0.45, 0xb0bec5, { x: -3, y: 2, z: 4 }));
     return g;
@@ -1307,7 +1465,7 @@
     g.add(cyl(6, 6, 9, 0xcfd8dc, { y: 0 }));
     g.add(cyl(6.2, 6.2, 0.6, 0x78909c, { y: 9 }));
     g.add(box(6, 3.4, 0.4, 0x4fc3f7, { y: 0, z: 6.2 }));
-    g.add(box(4, 1.2, 0.4, 0x263238, { y: 10, z: 0 }));
+    g.add(signBoard(4, 0.65, 'คอนเสิร์ต', '#263238', '#ffd54f').translateY(10.2));
     return g;
   });
 
@@ -1376,7 +1534,8 @@
     g.add(box(5, 3, 4, 0xf8bbd0));
     g.add(box(5.4, 0.35, 4.4, 0xad1457, { y: 3 }));
     g.add(box(2.4, 1.2, 0.15, 0xfff8e1, { y: 0.6, z: 2.08 }));
-    g.add(box(2, 0.7, 0.2, 0xad1457, { y: 3.3, z: 0 }));
+    g.add(signBoard(2.4, 0.45, 'เสื้อผ้า', '#ad1457', '#ffffff').translateY(3.4));
+    // เสื้อค้างหน้าร้าน 3 ตัว
     for (var i = -1; i <= 1; i++) {
       g.add(box(0.4, 1.6, 0.15, [0xef5350, 0x42a5f5, 0xffca28][i + 1], { x: 2.2 + i * 1.1, y: 0, z: 2.9 }));
     }
@@ -1388,6 +1547,7 @@
     g.add(box(5, 3, 4, 0xe3f2fd));
     g.add(box(5.4, 0.35, 4.4, 0x1565c0, { y: 3 }));
     g.add(box(2.6, 1.3, 0.15, 0xbbdefb, { y: 0.65, z: 2.08 }));
+    g.add(signBoard(2.4, 0.45, 'รองเท้า', '#1565c0', '#ffffff').translateY(3.4));
     g.add(box(1.6, 0.7, 1.1, 0x1565c0, { x: 1.2, y: 3.4, z: 0 }));   // รองเท้ายักษ์บนหลังคา
     g.add(box(0.4, 0.5, 0.5, 0x0d47a1, { x: 0.3, y: 3.5, z: 0 }));
     return g;
@@ -1398,7 +1558,7 @@
     g.add(box(5, 3, 4, 0x212121));
     g.add(box(5.4, 0.35, 4.4, 0x424242, { y: 3 }));
     g.add(box(2.8, 1.4, 0.2, 0x4fc3f7, { y: 0.7, z: 2.1 }));
-    g.add(box(2.2, 0.7, 0.2, 0xffffff, { y: 3.4, z: 0 }));
+    g.add(signBoard(2.2, 0.45, 'มือถือ', '#4fc3f7', '#212121').translateY(3.4));
     return g;
   });
 
@@ -1407,6 +1567,7 @@
     g.add(box(5, 3, 4, 0xffe0b2));
     g.add(box(5.4, 0.35, 4.4, 0x8d5524, { y: 3 }));
     g.add(box(2.6, 1.2, 0.15, 0xfff3e0, { y: 0.6, z: 2.08 }));
+    g.add(signBoard(2.4, 0.45, 'หนังสือ', '#8d5524', '#fff3e0').translateY(3.4));
     var bookCols = [[0xef5350, 0xffca28], [0x42a5f5, 0x66bb6a], [0xab47bc, 0x8d6e63]];
     for (var i = 0; i < 3; i++) {
       g.add(box(1.2, 1.8, 0.4, 0x6d4c41, { x: -2 + i * 2, y: 0.9, z: -0.4 }));
@@ -1421,6 +1582,7 @@
     g.add(box(5, 3, 4, 0xc8e6c9));
     g.add(box(5.4, 0.35, 4.4, 0x2e7d32, { y: 3 }));
     g.add(box(2.4, 1.1, 0.15, 0xe8f5e9, { y: 0.55, z: 2.08 }));
+    g.add(signBoard(2.4, 0.45, 'ดอกไม้', '#2e7d32', '#ffe082').translateY(3.4));
     var cols = [0xf06292, 0xffca28, 0xef5350, 0xba68c8, 0xff8a65];
     for (var i = 0; i < 5; i++) {
       g.add(cyl(0.22, 0.18, 0.7, 0x8d6e63, { x: -1.8 + i * 0.95, y: 0, z: 2.7 }));
@@ -1434,7 +1596,11 @@
     g.add(box(5, 3, 4, 0xf5f5f5));
     g.add(box(5.4, 0.35, 4.4, 0x616161, { y: 3 }));
     g.add(box(2.4, 1.2, 0.15, 0xe0e0e0, { y: 0.6, z: 2.08 }));
-    g.add(cyl(0.16, 0.16, 1.8, 0xef5350, { x: -1.8, y: 0, z: 2.8 }));   // เสาสลาก
+    g.add(signBoard(2.4, 0.45, 'ตัดผม', '#616161', '#ffffff').translateY(3.4));
+    // เสาสลากเรืองแสง (สัญลักษณ์ร้านตัดผม)
+    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.8, 8), emissiveRedMat);
+    pole.position.set(-1.8, 0.9, 2.8);
+    g.add(pole);
     g.add(box(0.32, 0.2, 0.32, 0xffffff, { x: -1.8, y: 0.5, z: 2.8 }));
     g.add(box(0.32, 0.2, 0.32, 0xffffff, { x: -1.8, y: 0.9, z: 2.8 }));
     g.add(box(0.32, 0.2, 0.32, 0xffffff, { x: -1.8, y: 1.3, z: 2.8 }));
@@ -1530,6 +1696,122 @@
     }
     return g;
   });
+
+  // =====================================================================
+  // อาคารย่อยประจำย่าน (เติมความหนาแน่นแบบเมืองจริง)
+  // =====================================================================
+  def('wclinic', 'คลินิกในซอย', 'สาธารณสุข', 4, function (R) {
+    var g = new THREE.Group();
+    g.add(box(4.5, 2.8, 3.5, 0xf7f4ee));
+    g.add(box(4.9, 0.3, 3.9, 0x90a4ae, { y: 2.8 }));
+    g.add(signBoard(2.2, 0.4, 'คลินิก', '#ffffff', '#d94f4f').translateY(3.15));
+    return g;
+  });
+
+  def('monkhouse', 'กุฏิสงฆ์', 'ศาสนสถาน', 4, function (R) {
+    var g = new THREE.Group();
+    var hut = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.6, 3.6), woodMat);
+    hut.position.y = 1.3;
+    g.add(hut);
+    g.add(gableRoof(5, 4, 1.4, 0, { y: 2.6 }));
+    g.add(box(4.9, 0.5, 4, 0x8a6d3b, { y: 0.25 }));   // ฐานคิดหิน
+    return g;
+  });
+
+  def('pavilion', 'ศาลาการเปรียญ', 'ศาสนสถาน', 6, function (R) {
+    var g = new THREE.Group();
+    g.add(box(8, 3, 6, 0xf5efe0));
+    g.add(box(9, 1, 7, 0xd4af37, { y: 3 }));
+    g.add(box(9.6, 0.4, 7.6, 0xc9a86a, { y: 4 }));
+    for (var i = 0; i < 4; i++) {
+      g.add(cyl(0.25, 0.25, 3, 0xc9a86a, { x: -3 + i * 2, y: 0, z: 3.2 }));
+    }
+    return g;
+  });
+
+  def('gallery', 'อาคารจัดแสดงงาน', 'วัฒนธรรม', 5, function (R) {
+    var g = new THREE.Group();
+    g.add(box(6, 4, 5, 0xf5f5f0));
+    g.add(box(6.4, 0.4, 5.4, 0xe0e0d8, { y: 4 }));
+    g.add(box(3, 2, 0.25, 0x9e9e9e, { y: 1.2, z: 2.6 }));
+    g.add(signBoard(2.4, 0.45, 'แกลเลอรี', '#37474f', '#ffffff').translateY(4.5));
+    return g;
+  });
+
+  def('oldcinema', 'โรงหนังเก่า', 'วัฒนธรรม', 7, function (R) {
+    var g = new THREE.Group();
+    g.add(box(9, 6, 7, 0xd8c8b0));
+    g.add(box(9.4, 0.5, 7.4, 0x8a6d3b, { y: 6 }));
+    var sign = new THREE.Mesh(new THREE.BoxGeometry(5, 1.4, 0.4), emissiveYellowMat);
+    sign.position.set(0, 4.6, 3.6);
+    g.add(sign);
+    g.add(box(2.4, 2.6, 0.3, 0x4fc3f7, { y: 0.6, z: 3.55 }));
+    return g;
+  });
+
+  def('artstudio', 'สตูดิโอศิลปะ', 'วัฒนธรรม', 4.5, function (R) {
+    var g = new THREE.Group();
+    g.add(box(5, 3.4, 4.5, 0xe8eaf0));
+    // หลังคาเอียงเลี้ยวเดียว (สตูดิโอแสง)
+    var sl = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.3, 4.9), metalRoofMats[1]);
+    sl.position.set(0, 3.55, -0.2);
+    sl.rotation.x = 0.12;
+    g.add(sl);
+    g.add(box(2.6, 1.6, 0.2, 0xb3e5fc, { y: 1.4, z: 2.3 }));   // หน้าต่างบานใหญ่
+    return g;
+  });
+
+  // =====================================================================
+  // กลุ่มอาคารเรียงแถว (ทำให้ย่านแน่นเหมือนเมืองจริง — ใช้ 1 จุดวางได้หลายหลัง)
+  // =====================================================================
+  function cluster(kind) {
+    var g = new THREE.Group();
+    var i;
+    if (kind === 'estate') {          // หมู่บ้านจัดสรร: บ้านเดี่ยว/แฝดเรียง 2 แถว
+      for (var r = 0; r < 2; r++) {
+        for (var c = 0; c < 4; c++) {
+          var twin = (r === 1 && c % 2 === 0);
+          var h = City.makers[twin ? 'twinhouse' : 'house'].build(Math.random);
+          h.position.set(-7.5 + c * 5, 0, -4.5 + r * 9);
+          h.rotation.y = (c % 2) ? Math.PI : 0;
+          g.add(h);
+        }
+      }
+    } else if (kind === 'townhouses') {   // แถวทาวน์โฮม 2 ฝั่งหันหน้าเข้าหาถนน
+      for (i = 0; i < 12; i++) {
+        var t = City.makers.townhouse.build(Math.random);
+        t.position.set(-13.8 + (i % 6) * 5.5, 0, i < 6 ? -5 : 5);
+        t.rotation.y = i < 6 ? 0 : Math.PI;
+        g.add(t);
+      }
+    } else if (kind === 'shophouses') {   // ตึกแถวย่านการค้า 2 แถว
+      for (i = 0; i < 10; i++) {
+        var shop = City.makers.shops.build(Math.random);
+        shop.position.set(-13.5 + (i % 5) * 6.75, 0, i < 5 ? -4 : 4);
+        shop.rotation.y = i < 5 ? 0 : Math.PI;
+        g.add(shop);
+      }
+    } else if (kind === 'foodStreet') {   // ย่านร้านอาหารข้างทาง
+      var keys = ['foodStall', 'noodleShop', 'cafe', 'bakery'];
+      for (i = 0; i < 8; i++) {
+        var f = City.makers[keys[i % keys.length]].build(Math.random);
+        f.position.set(-10.5 + (i % 4) * 7, 0, i < 4 ? -3.5 : 3.5);
+        f.rotation.y = i < 4 ? 0 : Math.PI;
+        g.add(f);
+      }
+    } else if (kind === 'campus') {       // กลุ่มอาคารเรียนรอบลานกว้าง
+      var mains = ['primarySchool', 'highSchool', 'library'];
+      for (i = 0; i < 3; i++) {
+        var b = City.makers[mains[i]].build(Math.random);
+        var ang = -0.5 + i * 1.05;
+        b.position.set(Math.cos(ang) * 12, 0, Math.sin(ang) * 12);
+        b.rotation.y = -ang + Math.PI / 2;
+        g.add(b);
+      }
+    }
+    return g;
+  }
+  City.cluster = cluster;
 
   City.helpers = { box: box, cyl: cyl, cone: cone };
 })(window, document, THREE);
