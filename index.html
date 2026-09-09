@@ -2,7 +2,11 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1419" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>ผังเมือง 3D — City Plan 3D Viewer</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -12,13 +16,20 @@
 
     <!-- แถบหัวเรื่อง -->
     <header class="topbar">
-      <h1>🏙️ ผังเมือง 3D — 17 โซน</h1>
-      <p>ลากเพื่อหมุน • สกรอลล์เพื่อซูม • คลิกขวาเพื่อเลื่อน • คลิกอาคารเพื่อดูข้อมูล</p>
+      <div class="topbar-title">
+        <h1>🏙️ ผังเมือง 3D</h1>
+        <p id="hintText">ลาก = หมุน • สองนิ้วบีบ = ซูม • แตะอาคารเพื่อดูข้อมูล</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="legendToggle" class="chip" type="button">🗺️ โซน</button>
+        <button id="menuToggle" class="chip" type="button">⚙️ เมนู</button>
+      </div>
     </header>
 
     <!-- แผงควบคุม -->
     <aside class="panel" id="controlPanel">
-      <h2>การควบคุม</h2>
+      <div class="panel-head"><h2>การควบคุม</h2></div>
+      <div class="panel-body">
 
       <label class="field toggle">
         <input type="checkbox" id="showBuildings" checked />
@@ -52,11 +63,12 @@
           <button data-view="street">ระดับถนน</button>
         </div>
       </div>
+      </div><!-- /panel-body -->
     </aside>
 
     <!-- คำอธิบายสัญลักษณ์ -->
-    <aside class="panel legend" id="legend">
-      <h2>สัญลักษณ์โซน (17 หมวด)</h2>
+    <aside class="panel legend" id="legendPanel">
+      <div class="panel-head"><h2>สัญลักษณ์โซน (17 หมวด)</h2></div>
       <ul id="legendList"></ul>
     </aside>
 

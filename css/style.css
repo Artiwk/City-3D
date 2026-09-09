@@ -8,7 +8,9 @@
   --radius: 12px;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { height: 100%; }
 
 body {
   font-family: "Segoe UI", "Sarabun", "Noto Sans Thai", Tahoma, sans-serif;
@@ -16,9 +18,12 @@ body {
   color: var(--text);
   overflow: hidden;
   height: 100vh;
+  height: 100dvh; /* เว็บมือถือ: สูงตาม viewport จริง ไม่โดนแถบ address bar บัง */
+  overscroll-behavior: none;
+  touch-action: manipulation; /* ปิด double-tap zoom บนปุ่ม UI */
 }
 
-#app { position: relative; width: 100vw; height: 100vh; }
+#app { position: relative; width: 100vw; height: 100vh; height: 100dvh; }
 
 #scene { display: block; width: 100%; height: 100%; }
 
@@ -28,6 +33,9 @@ body {
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
   text-align: center;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -38,6 +46,26 @@ body {
 }
 .topbar h1 { font-size: 1.15rem; font-weight: 700; }
 .topbar p  { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+.topbar-title { min-width: 0; }
+.topbar-title p { white-space: nowrap; }
+.topbar-actions { display: none; }
+
+/* ปุ่ม chip มุมขวาบน (มือถือเท่านั้น) */
+.chip {
+  pointer-events: auto;
+  background: #1a222c;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:active { background: var(--accent); color: #08131a; }
+.chip.active { background: var(--accent); color: #08131a; border-color: var(--accent); }
 
 /* ---------- Panels ---------- */
 .panel {
@@ -56,8 +84,30 @@ body {
   margin-bottom: 10px;
 }
 
+/* หัวแผงที่กดยุบ/ขยายได้ (ทั้งเมนูและ legend) */
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  margin: -2px -4px 0;
+  padding: 2px 4px;
+}
+.panel-head h2 { margin-bottom: 0; pointer-events: none; }
+.panel-head::after {
+  content: "▾";
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  transition: transform 0.2s ease;
+}
+.panel.collapsed .panel-head::after { transform: rotate(-90deg); }
+.panel-body { overflow: hidden; }
+.panel.collapsed .panel-body { display: none; }
+.panel.collapsed { padding-bottom: 10px; }
+
 #controlPanel { top: 90px; left: 16px; width: 240px; }
-#legend { top: 90px; right: 16px; width: 230px; }
+#legendPanel { top: 90px; right: 16px; width: 230px; }
 
 /* ---------- Form fields ---------- */
 .field { display: block; margin-bottom: 12px; }
@@ -81,9 +131,10 @@ select {
 }
 
 input[type="checkbox"] {
-  width: 16px; height: 16px;
+  width: 18px; height: 18px;
   accent-color: var(--accent);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .toggle { display: flex; align-items: center; gap: 8px; }
@@ -94,6 +145,7 @@ input[type="checkbox"] {
 .btn-group button {
   flex: 1;
   padding: 7px 4px;
+  min-height: 36px; /* เป้าสัมผัสขั้นต่ำสำหรับนิ้ว */
   background: #1a222c;
   color: var(--text-dim);
   border: 1px solid var(--border);
@@ -114,8 +166,10 @@ input[type="checkbox"] {
 /* ---------- Legend ---------- */
 #legendList {
   list-style: none;
-  max-height: calc(100vh - 170px);
+  max-height: calc(100vh - 190px);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding-right: 2px;
 }
 #legendList::-webkit-scrollbar { width: 6px; }
@@ -124,7 +178,8 @@ input[type="checkbox"] {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 4px 6px;
+  padding: 7px 6px;
+  min-height: 36px;
   border-radius: 7px;
   font-size: 0.82rem;
   cursor: pointer;
@@ -168,8 +223,72 @@ input[type="checkbox"] {
 }
 #loading.done { opacity: 0; pointer-events: none; }
 
-/* ---------- Responsive ---------- */
+/* ---------- Mobile ---------- */
 @media (max-width: 720px) {
-  #legend { display: none; }
-  #controlPanel { width: 200px; top: 84px; }
+  :root { --radius: 10px; }
+
+  /* แถบหัวเรื่องแบบเต็มความกว้าง + ปุ่มเปิด/ปิดแผง */
+  .topbar {
+    top: 0; left: 0; right: 0;
+    transform: none;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px calc(10px);
+    padding-top: calc(10px + env(safe-area-inset-top));
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+  }
+  .topbar h1 { font-size: 0.95rem; }
+  .topbar p { font-size: 0.66rem; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-actions { display: flex; gap: 8px; }
+  .chip { padding: 7px 11px; font-size: 0.78rem; }
+
+  /* แผงทั้งสองเป็น bottom sheet ลอยเหนือฉาก */
+  #controlPanel,
+  #legendPanel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-height: 56vh;
+    border-radius: 14px 14px 0 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-right: 0;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    transform: translateY(110%);
+    transition: transform 0.28s ease;
+    z-index: 20;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.45);
+  }
+  #controlPanel.open,
+  #legendPanel.open { transform: translateY(0); }
+
+  #legendPanel #legendList { max-height: 40vh; }
+  #legendPanel li { font-size: 0.85rem; }
+  .panel-head { padding: 6px 0; }
+  .panel-head h2 { font-size: 0.8rem; }
+
+  /* ปุ่มกว้างขึ้นเพื่อแตะง่าย */
+  .btn-group button { padding: 10px 4px; min-height: 42px; font-size: 0.8rem; }
+  input[type="checkbox"] { width: 20px; height: 20px; }
+  .toggle span { font-size: 0.9rem; }
+  .field { margin-bottom: 14px; }
+
+  /* tooltip กล่องข้อมูล: ยกเหนือ bottom sheet ที่กางออก */
+  .tooltip {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    font-size: 0.82rem;
+    max-width: 92vw;
+    padding: 10px 14px;
+    z-index: 30;
+  }
+}
+
+/* จอแคบมาก: ซ่อนคำใบ้การใช้งาน */
+@media (max-width: 380px) {
+  .topbar p { display: none; }
 }

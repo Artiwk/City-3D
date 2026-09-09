@@ -1303,6 +1303,45 @@
     });
   });
 
+  // ================= UI: ปุ่มเปิด/ปิดแผงบนมือถือ + หัวแผงกดยุบได้ =================
+  var isMobile = function () { return window.matchMedia('(max-width: 720px)').matches; };
+  var controlPanel = document.getElementById('controlPanel');
+  var legendPanel = document.getElementById('legendPanel');
+  var menuToggle = document.getElementById('menuToggle');
+  var legendToggle = document.getElementById('legendToggle');
+
+  function setPanelOpen(panel, btn, open) {
+    panel.classList.toggle('open', open);
+    if (btn) btn.classList.toggle('active', open);
+  }
+  function anyPanelOpen() {
+    return controlPanel.classList.contains('open') || legendPanel.classList.contains('open');
+  }
+  function closeAllPanels() {
+    setPanelOpen(controlPanel, menuToggle, false);
+    setPanelOpen(legendPanel, legendToggle, false);
+  }
+
+  if (menuToggle) menuToggle.addEventListener('click', function () {
+    var willOpen = !controlPanel.classList.contains('open');
+    closeAllPanels();
+    setPanelOpen(controlPanel, menuToggle, willOpen);
+  });
+  if (legendToggle) legendToggle.addEventListener('click', function () {
+    var willOpen = !legendPanel.classList.contains('open');
+    closeAllPanels();
+    setPanelOpen(legendPanel, legendToggle, willOpen);
+  });
+
+  // หัวแผง (เดสก์ท็อป): กดยุบ/ขยายได้
+  [controlPanel, legendPanel].forEach(function (panel) {
+    var head = panel.querySelector('.panel-head');
+    if (!head) return;
+    head.addEventListener('click', function () {
+      panel.classList.toggle('collapsed');
+    });
+  });
+
   // ================= UI: toggles =================
   document.getElementById('showBuildings').addEventListener('change', function (e) {
     buildingsGroup.visible = e.target.checked;
@@ -1346,40 +1385,80 @@
     });
   });
 
-  // ================= คลิกอาคารเพื่อดูข้อมูล =================
+  // ================= แตะ/คลิกอาคารเพื่อดูข้อมูล =================
+  // แตะ = โชว์ข้อมูล, ลาก = หมุนกล้อง (ต้องแยกให้ชัด ไม่งั้นหมุนแล้วขึ้นป๊อปทุกครั้ง)
   var raycaster = new THREE.Raycaster();
   var pointer = new THREE.Vector2();
   var tooltip = document.getElementById('tooltip');
+  var downX = 0, downY = 0, downTime = 0, pointersDown = 0;
+  var TAP_SLOP = 8;      // px — ระยะขยับที่ยังนับเป็น "แตะ"
+  var TAP_TIME = 350;    // ms — เวลากดค้างสูงสุดที่นับเป็น "แตะ"
 
   var pickables = zoneMeshes.concat(landmarkMeshes);
 
-  canvas.addEventListener('pointerdown', function (e) {
-    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  function pickAt(clientX, clientY) {
+    pointer.x = (clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
     var hits = raycaster.intersectObjects(pickables, false);
-    var hit = null;
     for (var i = 0; i < hits.length; i++) {
-      if (hits[i].object.visible !== false) { hit = hits[i]; break; }
+      if (hits[i].object.visible !== false) return hits[i];
     }
-    if (hit) {
-      var ud = hit.object.userData;
-      if (ud.landmark) {
-        tooltip.innerHTML =
-          '<b>' + ud.label + '</b><br/>' +
-          'หมวด: ' + ud.cat + '<br/>' +
-          '<small>คลิกอาคารอื่นเพื่อดูข้อมูล</small>';
-      } else {
-        tooltip.innerHTML =
-          '<b>' + ud.zone.label + '</b><br/>' +
-          'ความสูง: ' + ud.floors + ' ชั้น (~' + Math.round(ud.floors * FLOOR_H) + ' ม.)<br/>' +
-          '<small>คลิกอาคารอื่นเพื่อดูข้อมูล</small>';
-      }
-      tooltip.classList.remove('hidden');
-      clearTimeout(tooltip._t);
-      tooltip._t = setTimeout(function () { tooltip.classList.add('hidden'); }, 4000);
+    return null;
+  }
+
+  function showTooltip(hit) {
+    var ud = hit.object.userData;
+    if (ud.landmark) {
+      tooltip.innerHTML =
+        '<b>' + ud.label + '</b><br/>' +
+        'หมวด: ' + ud.cat + '<br/>' +
+        '<small>แตะอาคารอื่นเพื่อดูข้อมูล</small>';
+    } else {
+      tooltip.innerHTML =
+        '<b>' + ud.zone.label + '</b><br/>' +
+        'ความสูง: ' + ud.floors + ' ชั้น (~' + Math.round(ud.floors * FLOOR_H) + ' ม.)<br/>' +
+        '<small>แตะอาคารอื่นเพื่อดูข้อมูล</small>';
+    }
+    tooltip.classList.remove('hidden');
+    clearTimeout(tooltip._t);
+    tooltip._t = setTimeout(function () { tooltip.classList.add('hidden'); }, 4000);
+  }
+
+  canvas.addEventListener('pointerdown', function (e) {
+    pointersDown++;
+    downX = e.clientX; downY = e.clientY; downTime = Date.now();
+  });
+
+  canvas.addEventListener('pointerup', function (e) {
+    var wasMultiTouch = pointersDown > 1;   // มีนิ้วอื่นยังแตะอยู่ = pinch/pan ไม่ใช่แตะ
+    pointersDown = Math.max(0, pointersDown - 1);
+    // ข้ามกรณีหลายนิ้ว (pinch zoom) และกรณีเลื่อนเยอะ/กดนาน = การหมุนกล้อง ไม่ใช่แตะ
+    if (wasMultiTouch) return;
+    var moved = Math.hypot(e.clientX - downX, e.clientY - downY);
+    if (moved > TAP_SLOP || Date.now() - downTime > TAP_TIME) return;
+    var hit = pickAt(e.clientX, e.clientY);
+    if (hit) showTooltip(hit);
+  });
+
+  canvas.addEventListener('pointercancel', function () {
+    pointersDown = 0;
+  });
+
+  // ซ่อน tooltip ทันทีที่เริ่มลากหมุนกล้อง (ทั้งเมาส์และนิ้ว)
+  canvas.addEventListener('pointermove', function (e) {
+    if (e.buttons > 0 && Math.hypot(e.clientX - downX, e.clientY - downY) > TAP_SLOP) {
+      tooltip.classList.add('hidden');
     }
   });
+
+  // ================= คำใบ้การใช้งานตามประเภทอุปกรณ์ =================
+  var hintText = document.getElementById('hintText');
+  if (hintText) {
+    var touchHint = 'ลากนิ้ว = หมุน • สองนิ้วบีบ = ซูม • สองนิ้วเลื่อน = แพน • แตะอาคารเพื่อดูข้อมูล';
+    var mouseHint = 'ลาก = หมุน • สกรอลล์ = ซูม • คลิกขวาลาก = เลื่อน • คลิกอาคารเพื่อดูข้อมูล';
+    hintText.textContent = (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) ? touchHint : mouseHint;
+  }
 
   // ================= Auto-rotate =================
   var autoRotateCb = document.getElementById('autoRotate');
@@ -1389,11 +1468,16 @@
   });
 
   // ================= Resize =================
-  window.addEventListener('resize', function () {
-    camera.aspect = window.innerWidth / window.innerHeight;
+  function onResize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  }
+  window.addEventListener('resize', onResize);
+  // มือถือ: address bar หด/ขยายไม่ fire resize เสมอไป — ใช้ visualViewport ช่วย
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 
   // ================= ซ่อนหน้าโหลด =================
   var loadingEl = document.getElementById('loading');
