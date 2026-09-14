@@ -42,6 +42,11 @@
       </label>
 
       <label class="field toggle">
+        <input type="checkbox" id="showLabels" checked />
+        <span>ป้ายชื่อบนหัวตึก</span>
+      </label>
+
+      <label class="field toggle">
         <input type="checkbox" id="autoRotate" />
         <span>หมุนอัตโนมัติ</span>
       </label>
@@ -74,6 +79,12 @@
 
     <!-- กล่องข้อมูลเมื่อคลิกโซน -->
     <div class="panel tooltip hidden" id="tooltip"></div>
+
+    <!-- ป้ายชื่ออาคารแบบ GUI (โชว์ตอนชี้เมาส์) -->
+    <div id="hoverTag" class="name-tag hidden"></div>
+
+    <!-- ป้ายชื่อบนหัวตึกทุกหลัง (โปรเจกต์จาก 3D → จอ) -->
+    <div id="labelLayer"></div>
 
     <div id="loading">กำลังโหลดผังเมือง…</div>
   </div>

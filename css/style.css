@@ -201,12 +201,89 @@ input[type="checkbox"] {
   transform: translateX(-50%);
   font-size: 0.85rem;
   line-height: 1.55;
-  text-align: center;
+  text-align: left;
+  min-width: 240px;
   transition: opacity 0.2s;
 }
 .tooltip.hidden { opacity: 0; pointer-events: none; }
-.tooltip b { color: var(--accent); font-size: 0.95rem; }
+.tooltip b { color: var(--accent); font-size: 1rem; }
 .tooltip small { color: var(--text-dim); }
+.tip-head { display: flex; align-items: center; gap: 9px; }
+.tip-icon { font-size: 1.3rem; line-height: 1; }
+.tip-dot {
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+}
+.tip-cat { color: var(--text-dim); font-size: 0.78rem; margin: 3px 0 5px; }
+
+/* ---------- ป้ายชื่ออาคารแบบ GUI (ตามเมาส์) ---------- */
+#hoverTag {
+  position: absolute;
+  z-index: 15;
+  pointer-events: none;          /* ไม่บังการคลิก/ลากกล้อง */
+  background: rgba(12, 18, 26, 0.92);
+  border: 1px solid rgba(120, 190, 255, 0.45);
+  border-radius: 8px;
+  padding: 5px 12px 6px;
+  color: #eaf4ff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translate(14px, -50%);   /* วางด้านขวาของเคอร์เซอร์ */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.12s;
+}
+#hoverTag .tag-cat {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: #8fc7ee;
+  letter-spacing: 0.02em;
+}
+#hoverTag.hidden { opacity: 0; }
+#hoverTag::after {                 /* หัวลูกศรชี้ไปที่ตัวอาคาร */
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 8px; height: 8px;
+  background: inherit;
+  border-left: 1px solid rgba(120, 190, 255, 0.45);
+  border-bottom: 1px solid rgba(120, 190, 255, 0.45);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+/* ---------- ป้ายชื่อบนหัวตึก (โปรเจกต์จาก 3D ทุกเฟรม) ---------- */
+#labelLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;   /* ไม่บังการคลิก/ลากกล้อง */
+  z-index: 5;
+}
+.blabel {
+  position: absolute;
+  left: 0; top: 0;
+  display: none;
+  will-change: transform;
+  background: rgba(12, 18, 26, 0.88);
+  border: 1px solid rgba(120, 190, 255, 0.38);
+  border-radius: 999px;
+  padding: 2px 10px 3px;
+  color: #eaf4ff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.blabel .ic { margin-right: 5px; }
+@media (max-width: 720px) {
+  .blabel { font-size: 0.78rem; padding: 3px 11px 4px; }
+}
 
 /* ---------- Loading ---------- */
 #loading {
