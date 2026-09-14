@@ -21,6 +21,7 @@
         <p id="hintText">ลาก = หมุน • สองนิ้วบีบ = ซูม • แตะอาคารเพื่อดูข้อมูล</p>
       </div>
       <div class="topbar-actions">
+        <button id="labelToggle" class="chip active" type="button">🏷️ ป้าย</button>
         <button id="legendToggle" class="chip" type="button">🗺️ โซน</button>
         <button id="menuToggle" class="chip" type="button">⚙️ เมนู</button>
       </div>
@@ -41,10 +42,14 @@
         <span>สีตามโซนผังเมือง</span>
       </label>
 
-      <label class="field toggle">
-        <input type="checkbox" id="showLabels" checked />
+      <div class="field">
         <span>ป้ายชื่อบนหัวตึก</span>
-      </label>
+        <div class="btn-group" id="labelMode">
+          <button data-mode="auto" class="active">อัตโนมัติ</button>
+          <button data-mode="on">ทั้งหมด</button>
+          <button data-mode="off">ซ่อน</button>
+        </div>
+      </div>
 
       <label class="field toggle">
         <input type="checkbox" id="autoRotate" />

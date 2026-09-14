@@ -1009,7 +1009,7 @@
       boxes.push({ x: x, z: z, w: bw, d: bd });
       landmarksGroup.add(grp);
       registerLandmark(grp, mk.label, mk.cat, block.zone);
-      addBuildingLabel(grp, mk.label, mk.cat, bb.max.y + 7);
+      addBuildingLabel(grp, mk.label, mk.cat, bb.max.y + 7, null, 2);   // อาคารชื่อเฉพาะ
       placed++;
     }
   }
@@ -1065,7 +1065,7 @@
           landmarksGroup.add(cgrp);
           var clName = { estate: 'หมู่บ้านจัดสรร', campus: 'กลุ่มอาคารเรียน', shophouses: 'ตึกแถวย่านการค้า', foodStreet: 'ย่านร้านอาหาร' }[CLUSTER_OF[block.zone]];
           registerLandmark(cgrp, clName, 'ย่าน', block.zone);
-          addBuildingLabel(cgrp, clName, 'ย่าน');
+          addBuildingLabel(cgrp, clName, 'ย่าน', null, null, 3);   // หมู่บ้าน/ย่าน = แลนด์มาร์กหลัก
           boxes.push({ x: cx2, z: cz2, w: cw, d: cd });
           cPlaced = true;
         }
@@ -1090,7 +1090,7 @@
           }
           boxes.push({ x: fx, z: fz, w: bw + 2, d: bd + 2 });
           var fgrp = makeVariedBuilding(fx, fz, bw, bd, floors, zone, rand);
-          addBuildingLabel(fgrp, zone.label.split(' (')[0], null, null, ZONE_ICONS[zone.id]);
+          addBuildingLabel(fgrp, zone.label.split(' (')[0], null, null, ZONE_ICONS[zone.id], 1);   // ตึกเติมตามโซน
         }
         // ต้นไม้ในย่านที่อยู่อาศัย
         if (block.zone === 'res') {
@@ -1134,7 +1134,7 @@
         grp.rotation.y = rand() * Math.PI;
         landmarksGroup.add(grp);
         registerLandmark(grp, mk.label, mk.cat, 'green');
-        addBuildingLabel(grp, mk.label, mk.cat);
+        addBuildingLabel(grp, mk.label, mk.cat, null, null, 2);
       });
     })();
 
@@ -1192,7 +1192,7 @@
     g.position.set(x, SIDEWALK_H, z);
     g.rotation.y = ry || 0;
     propsGroup.add(g);
-    addBuildingLabel(g, 'ป้ายรถเมล์', 'คมนาคม', SIDEWALK_H + 5.4);
+    addBuildingLabel(g, 'ป้ายรถเมล์', 'คมนาคม', SIDEWALK_H + 5.4, null, 0);
   }
 
   function makeHydrant(x, z) {
@@ -1238,7 +1238,7 @@
       bb.rotation.y = p[2];
       propsGroup.add(bb);
       registerLandmark(bb, 'ป้ายโฆษณา', 'โฆษณา', 'commerce');
-      addBuildingLabel(bb, 'ป้ายโฆษณา', 'โฆษณา');
+      addBuildingLabel(bb, 'ป้ายโฆษณา', 'โฆษณา', null, null, 0);
     });
     // ไฮดรันต์ + ถังขยะ เฉพาะแยกและริมทางเท้า
     var corners = [[-62, -9], [62, 9], [-9, 62], [9, -62], [-81, 9], [81, -9], [-9, -81], [9, 81]];
@@ -1269,7 +1269,7 @@
     bench.position.set(104, 0, 45);
     propsGroup.add(bench);
     registerLandmark(bench, 'ม้านั่ง', 'พื้นที่สีเขียว', 'green');
-    addBuildingLabel(bench, 'ม้านั่ง', 'พื้นที่สีเขียว', 2.2);
+    addBuildingLabel(bench, 'ม้านั่ง', 'พื้นที่สีเขียว', 2.2, null, 0);
 
     function place(obj, x, z, R) {
       obj.position.set(x, 0, z);
@@ -1313,7 +1313,7 @@
       grp.rotation.y = ry || 0;
       transportGroup.add(grp);
       registerLandmark(grp, mk.label, mk.cat, 'transport');
-      if (key === 'bridge') addBuildingLabel(grp, mk.label, mk.cat);   // ไฟจราจร/ทางม้าลายไม่ใส่ป้าย
+      if (key === 'bridge') addBuildingLabel(grp, mk.label, mk.cat, null, null, 3);   // ไฟจราจร/ทางม้าลายไม่ใส่ป้าย   // ไฟจราจร/ทางม้าลายไม่ใส่ป้าย
     };
     // สะพานข้ามทะเลสาบกลางเมือง 2 เส้นตัดกันแบบต่างระดับ:
     // แนว x=0 สูง 4.5 ม. | แนว z=0 สูง 12 ม. (ลอดใต้กัน ชัดเจน)
@@ -1324,7 +1324,7 @@
     br2.rotation.y = Math.PI / 2;
     transportGroup.add(br2);
     registerLandmark(br2, 'สะพานข้ามคลอง (สูง)', 'คมนาคม', 'transport');
-    addBuildingLabel(br2, 'สะพานข้ามคลอง (สูง)', 'คมนาคม');
+    addBuildingLabel(br2, 'สะพานข้ามคลอง (สูง)', 'คมนาคม', null, null, 3);
 
     // สัญญาณไฟ + ทางม้าลายแยกหลัก
     var xings = [
@@ -1490,8 +1490,7 @@
 
   // ================= ป้ายชื่อบนหัวตึก (GUI: โปรเจกต์ 3D → จอ ทุกเฟรม) =================
   var labelLayer = document.getElementById('labelLayer');
-  var showLabelsCb = document.getElementById('showLabels');
-  var bLabels = [];                 // { grp, x, y, z, el }
+  var bLabels = [];                 // { grp, x, y, z, el, pri }
   var blVec = new THREE.Vector3();
   var ZONE_ICONS = {
     res: '🏠', edu: '🎓', health: '🏥', safety: '🚨', commerce: '🛍️', food: '🍜',
@@ -1507,10 +1506,13 @@
   };
 
   // เพิ่มป้ายเหนืออาคาร 1 หลัง (worldY = ยอดอาคารจริง ถ้าไม่ส่งจะคำนวณจากกล่องอาคาร)
-  function addBuildingLabel(grp, label, cat, worldY, iconOverride) {
+  // pri = ลำดับความสำคัญ: 3 = แลนด์มาร์กหายาก (สะพาน/หมู่บ้านจัดสรร - ขอบทอง โชว์ก่อนเสมอ),
+  // 2 = อาคารชื่อเฉพาะ (โรงพยาบาล/ห้าง/วัด...), 1 = ตึกเติมตามโซน, 0 = ของประดับ (ป้ายรถเมล์/บิลบอร์ด)
+  function addBuildingLabel(grp, label, cat, worldY, iconOverride, pri) {
     if (!labelLayer || !grp) return;
+    var p = (pri == null ? 2 : pri);
     var el = document.createElement('div');
-    el.className = 'blabel';
+    el.className = 'blabel' + (p === 3 ? ' pri2' : '');
     el.innerHTML = '<span class="ic">' + (iconOverride || CAT_ICONS[cat] || '🏢') + '</span>' + label;
     labelLayer.appendChild(el);
     var top = worldY;
@@ -1518,30 +1520,68 @@
       var b = new THREE.Box3().setFromObject(grp);
       top = isFinite(b.max.y) ? b.max.y : 10;
     }
-    bLabels.push({ grp: grp, x: grp.position.x, y: top + 7, z: grp.position.z, el: el });
+    bLabels.push({ grp: grp, x: grp.position.x, y: top + 7, z: grp.position.z, el: el, pri: p });
   }
 
-  // อัปเดตตำแหน่งป้ายทุกเฟรม (ซ่อนเมื่ออยู่หลังกล้อง และจางหายเมื่อซูมออกไกล)
+  // ================= ระบบป้ายชื่ออัตโนมัติ =================
+  // โหมด: auto = คัดป้ายตามระยะซูม/ความสำคัญ + กันป้ายทับกัน | on = โชว์ทุกป้าย | off = ซ่อนหมด
+  var labelMode = 'auto';
+  var placedRects = [];   // สี่เหลี่ยมป้ายที่วางแล้วในเฟรมนี้ (กันป้ายทับกัน)
+  var lblVec = new THREE.Vector3();
+
+  // ระยะซูมสูงสุดที่แต่ละลำดับความสำคัญเริ่มโชว์ (ยิ่งค่าน้อย = ต้องซูมเข้าใกล้มากขึ้น)
+  var PRI_SHOW_DIST = { 3: 1700, 2: 780, 1: 450, 0: 300 };
+
+  // อัปเดตตำแหน่งป้ายทุกเฟรม: ซ่อนเมื่ออยู่หลังกล้อง, จางหายเมื่อซูมออกไกล,
+  // โหมดอัตโนมัติจะคัดให้เหลือเฉพาะป้ายสำคัญ/ไม่ทับกัน อ่านง่ายไม่รก
   function updateBuildingLabels() {
     if (!labelLayer) return;
-    var on = !showLabelsCb || showLabelsCb.checked;
     var W = window.innerWidth, H = window.innerHeight;
     var dist = camera.position.distanceTo(controls.target);
-    var fade = (dist / 1240) * (dist / 1240);   // ซูมเกิน ~1240 หน่วย → ป้ายค่อยๆ จางหาย
+    var auto = labelMode === 'auto';
+    var fade = (dist / 1500) * (dist / 1500);
     var op = Math.max(0, Math.min(1, 1 - fade));
-    for (var i = 0; i < bLabels.length; i++) {
-      var L = bLabels[i];
+    if (labelMode === 'off' || (auto && op <= 0.02)) {
+      for (var k = 0; k < bLabels.length; k++) bLabels[k].el.style.display = 'none';
+      return;
+    }
+    placedRects.length = 0;
+    // จัดเรียง: ป้ายสำคัญก่อน (pri มากก่อน) → แลนด์มาร์กได้ที่วางก่อนเสมอ
+    var order = bLabels.slice().sort(function (a, b) { return b.pri - a.pri; });
+    // จำนวนป้ายสูงสุดต่อเฟรม ตามขนาดจอ (จอใหญ่รับได้เยอะ / มือถือน้อยลง)
+    var budget = Math.round(Math.min(36, Math.max(16, (W * H) / 42000)));
+    var shown = 0;
+    var margin = 4;   // ช่องไฟระหว่างป้าย (px)
+    for (var i = 0; i < order.length; i++) {
+      var L = order[i];
       var parentVis = L.grp.parent ? L.grp.parent.visible : true;
-      if (!on || op <= 0.02 || !parentVis || !L.grp.visible) { L.el.style.display = 'none'; continue; }
-      blVec.set(L.x, L.y, L.z);
-      blVec.project(camera);
-      var x = (blVec.x * 0.5 + 0.5) * W;
-      var y = (-blVec.y * 0.5 + 0.5) * H;
-      var vis = blVec.z <= 1 && x > -80 && x < W + 80 && y > -40 && y < H + 40;
+      if (!parentVis || !L.grp.visible) { L.el.style.display = 'none'; continue; }
+      if (auto) {
+        var maxDist = PRI_SHOW_DIST[L.pri] || 780;
+        if (dist > maxDist) { L.el.style.display = 'none'; continue; }
+        if (shown >= budget && L.pri < 3) { L.el.style.display = 'none'; continue; }
+      }
+      lblVec.set(L.x, L.y, L.z);
+      lblVec.project(camera);
+      var x = (lblVec.x * 0.5 + 0.5) * W;
+      var y = (-lblVec.y * 0.5 + 0.5) * H;
+      var vis = lblVec.z <= 1 && x > -60 && x < W + 60 && y > -30 && y < H + 30;
       if (vis) {
+        // กันป้ายทับกัน: ประเมินขนาดกล่องคร่าว ๆ จากความยาวชื่อ (ถูกกว่าการอ่าน layout ทุกเฟรม)
+        var estW = (L.el.textContent || '').length * 7.4 + 34;
+        var r = { x0: x - estW / 2 - margin, y0: y - 30 - margin, x1: x + estW / 2 + margin, y1: y + margin };
+        var collide = false;
+        for (var j = 0; j < placedRects.length; j++) {
+          var q = placedRects[j];
+          if (r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0) { collide = true; break; }
+        }
+        // โหมดอัตโนมัติ: ป้ายทับได้ = ซ่อน (ยกเว้นแลนด์มาร์กหายาก pri 3 โชว์เสมอ)
+        if (collide && auto && L.pri < 3) { L.el.style.display = 'none'; continue; }
+        placedRects.push(r);
         L.el.style.display = 'block';
         L.el.style.opacity = String(op);
-        L.el.style.transform = 'translate(-50%,-100%) translate(' + x + 'px,' + y + 'px)';
+        L.el.style.transform = 'translate(-50%,-100%) translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+        shown++;
       } else {
         L.el.style.display = 'none';
       }
@@ -2094,6 +2134,30 @@
     var mouseHint = 'ลาก = หมุน • สกรอลล์ = ซูม • คลิกขวาลาก = เลื่อน • คลิกอาคารเพื่อดูข้อมูล';
     hintText.textContent = (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) ? touchHint : mouseHint;
   }
+
+  // ================= UI: โหมดป้ายชื่อ (อัตโนมัติ / ทั้งหมด / ซ่อน) =================
+  var labelModeButtons = document.querySelectorAll('#labelMode button');
+  labelModeButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      labelModeButtons.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      labelMode = btn.dataset.mode;
+      syncLabelChip();
+    });
+  });
+
+  // ปุ่มป้ายด่วนบนแถบหัวเรื่อง: กดสลับ อัตโนมัติ ↔ ซ่อน
+  var labelToggleBtn = document.getElementById('labelToggle');
+  function syncLabelChip() {
+    if (labelToggleBtn) labelToggleBtn.classList.toggle('active', labelMode !== 'off');
+  }
+  if (labelToggleBtn) labelToggleBtn.addEventListener('click', function () {
+    var next = labelMode === 'off' ? 'auto' : 'off';
+    labelMode = next;
+    labelModeButtons.forEach(function (b) { b.classList.toggle('active', b.dataset.mode === next); });
+    syncLabelChip();
+  });
+  syncLabelChip();
 
   // ================= Auto-rotate =================
   var autoRotateCb = document.getElementById('autoRotate');
