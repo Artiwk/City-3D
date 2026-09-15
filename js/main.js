@@ -1520,7 +1520,7 @@
     var railHalf = new THREE.Group();
     var end = 240;
     var span = 18;
-    // เสาตอม่อทุก 18 ม. (เว้นตรงทะเลสาบไม่ได้เพราะรางอยู่นอกน้ำอยู่แล้ว แต่เว้นช่วงสะพานยกระดับแนว z=0)
+    // เสาตอม่อทุก 18 ม. ตลอดสาย (รางอยู่นอกทะเลสาบและนอกแนวสะพานถนน จึงวางต่อเนื่องได้ทุกช่วง)
     for (var z = -end; z <= end; z += span) {
       var pier = new THREE.Mesh(new THREE.BoxGeometry(1.6, RAIL_Y, 1.6), matPier);
       pier.position.set(RAIL_X, RAIL_Y / 2, z);
@@ -1532,8 +1532,8 @@
       cap.castShadow = true;
       railHalf.add(cap);
     }
-    // ดาดรางยาวตลอดสาย (คาน 3 ชิ้นต่อช่วงเว้นช่วงสะพานสูง z=0)
-    var segs = [[-end, -24], [24, end]];   // สะพานยกระดับสูง (แนว z=0) ตัดผ่านช่วง z ±24
+    // ดาดรางยาวตลอดสาย ต่อเนื่องไม่ขาด (รางแนว x=-292 ไม่ตัดกับสะพานถนนกลางเมือง)
+    var segs = [[-end, end]];
     segs.forEach(function (sg) {
       var len = sg[1] - sg[0];
       var deck = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.1, len), matDeck);
