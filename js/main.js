@@ -37,6 +37,7 @@
   // ก้อนโซน (x, z, กว้าง w, ลึก d) หน่วย = เมตร บนพื้น 780x780
   // กติกา: บล็อกต้องอยู่ในช่องระหว่างถนนเสมอ (ถนนแนว x: ±70/±140/±240, แนว z: ±70/±140/±240)
   // ขอบบล็อก (±w/2, ±d/2) ต้องไม่เข้ารัศมีถนน±8 ม. — ช่อง 70 กว้างได้ ≤54, ช่อง 100 กว้างได้ ≤84
+  // และต้องไม่ทับทะเลสาบกลางเมือง (ellipse 55x38 ที่ 0,0)
   var ZONE_BLOCKS = [
     { zone: 'res',         x:  105, z:  105, w:  52, d:  52 },   // ชานเมืองตะวันออกเฉียงใต้ (บ้าน)
     { zone: 'res',         x:  -35, z: -105, w:  54, d:  52 },
@@ -50,13 +51,13 @@
     { zone: 'sports',      x:   36, z:  -42, w:  50, d:  26 },
     { zone: 'tourism',     x:  -36, z:  -42, w:  50, d:  26 },
     { zone: 'food',        x:  -36, z:   42, w:  50, d:  26 },
-    { zone: 'business',    x:   34, z:   40, w:  48, d:  20 },
+    { zone: 'business',    x:   36, z:   40, w:  44, d:  20 },   // ถอยจากทะเลสาบ (เดิม x=34 ยื่นเข้าน้ำ)
     { zone: 'health',      x:   34, z:   96, w:  50, d:  54 },   // เต็มช่องชานเมืองตะวันออก
     { zone: 'everyday',    x:  -34, z:   96, w:  50, d:  54 },   // เต็มช่องชานเมืองตะวันตก
     // === แถวเหนือ (z=-190) เติมให้เต็มทั้งแถว ===
     { zone: 'sports',      x:  -34, z: -190, w:  50, d:  54 },
     { zone: 'culture',     x:   34, z: -190, w:  50, d:  54 },
-    { zone: 'business',    x:  -34, z:  -36, w:  50, d:  54 },   // ธุรกิจเสริมแยกกลางฝั่งตะวันตก
+    // (ช่อง x=-34,z=-36 เป็นทะเลสาบกลางเมือง — ไม่วางบล็อก)
     { zone: 'tourism',     x:  -34, z:   42, w:  50, d:  26 },   // โรงแรมริมทะเลสาบฝั่งเหนือ
     // === แถวใต้ (z=190) เติมให้เต็มทั้งแถว ===
     { zone: 'res',         x:  -34, z:  190, w:  50, d:  54 },
@@ -65,14 +66,9 @@
     { zone: 'agriculture', x:   34, z:  190, w:  50, d:  54 },
   ];
 
-  // บล็อกเติมช่องว่าง (ทำให้เมืองแน่นขึ้น ไม่โล่ง)
-  // ตำแหน่งคำนวณแล้วว่าไม่ทับถนน/ทางเท้า/ทะเลสาบ/บล็อกเดิม
-  var INFILL_BLOCKS = [
-    { zone: 'commerce', x:  51, z: -18, w: 22, d: 20 },   // ริมทะเลสาบฝั่งตะวันออก
-    { zone: 'food',     x: -51, z: -18, w: 22, d: 20 },   // ริมทะเลสาบฝั่งตะวันตก
-    { zone: 'res',      x:  51, z:  18, w: 22, d: 20 },
-    { zone: 'everyday', x: -51, z:  18, w: 22, d: 20 },
-  ];
+  // บล็อกเติมช่องว่าง: เดิมมี 4 บล็อกริมทะเลสาบ แต่ตัวบล็อก/อาคารที่วางในนั้น
+  // ยื่นเข้าไปในน้ำ (ellipse 55x38) → ยกเลิกทั้งหมด เมืองยังแน่นจากบล็อกอื่นอยู่แล้ว
+  var INFILL_BLOCKS = [];
 
   // ย่านชั้นนอกระหว่างแนว ±140 กับถนนรอบนอก ±240 (ช่องกว้าง ≤84)
   ZONE_BLOCKS.push(
@@ -214,7 +210,7 @@
   scene.add(cloudGroup);
 
   // ================= แสง =================
-  var sun = new THREE.DirectionalLight(0xfff2dc, 1.25);
+  var sun = new THREE.DirectionalLight(0xfff2dc, 1.1);
   sun.position.set(200, 300, 140);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);   // ความละเอียดเงาสูงขึ้นตามเมืองที่ใหญ่ขึ้น
@@ -507,6 +503,7 @@
     g.stroke();
 
     var tex = new THREE.CanvasTexture(cv);
+    tex.encoding = THREE.sRGBEncoding;   // สำคัญ: ไม่งั้นพื้นจะซีดเพราะถูกตีความเป็น linear
     tex.anisotropy = 8;
     return tex;
   }
@@ -568,6 +565,7 @@
       g.stroke();
     });
     var tex = new THREE.CanvasTexture(cv);
+    tex.encoding = THREE.sRGBEncoding;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(6, 1);
     tex.anisotropy = 8;
@@ -704,47 +702,85 @@
     };
   }
 
-  // สร้าง texture หน้าต่าง (สุ่มไฟติด/ดับ — กลางวันกระจกเข้ม กลางคืนไฟอุ่น)
+  // สร้าง texture หน้าต่าง (สุ่มไฟติด/ดับ — กลางวันกระจกสะท้อนฟ้า กลางคืนไฟอุ่น)
+  // ความละเอียดสูงขึ้น: กระจกมีแสงสะท้อนเฉียง, มีผ้าม่าน, แอร์, คานหน้าต่างชัดเจน
   function windowTexture(floors, cols) {
     var key = floors + 'x' + cols;
     if (windowTexCache[key]) return windowTexCache[key];
 
+    var C = 24;   // พิกเซลต่อช่อง (เดิม 16 — ละเอียดขึ้นเพื่อความคม)
     var cv = document.createElement('canvas');
-    var cw = cols * 16, ch = floors * 16;
+    var cw = cols * C, ch = floors * C;
     cv.width = cw; cv.height = ch;
     var g = cv.getContext('2d');
-    g.fillStyle = '#26313d'; // กระจกสีฟ้าเข้ม (สะท้อนแสง)
+    g.fillStyle = '#1c2630';   // คาน/แผงระหว่างหน้าต่าง (เข้ม — ตอนกลางคืนแทบไม่เรือง)
     g.fillRect(0, 0, cw, ch);
 
     var rand = seededRandom(floors * 97 + cols * 31 + 7);
     for (var y = 0; y < floors; y++) {
+      // แผงคานกระจกแนวนอนระหว่างชั้น (spandrel) เข้มกว่าเล็กน้อย
+      g.fillStyle = 'rgba(255,255,255,0.05)';
+      g.fillRect(0, y * C, cw, 2);
       for (var x = 0; x < cols; x++) {
-        var lit = rand() < 0.5; // 50% ติดไฟ
+        var wx = x * C + 3, wy = y * C + 4, ww = C - 6, wh = C - 8;
+        var lit = rand() < 0.5;   // 50% ติดไฟ
+        // เนื้อกระจก: ไล่เฉดฟ้า (บนสว่าง = สะท้อนท้องฟ้า)
+        var grd = g.createLinearGradient(wx, wy, wx, wy + wh);
         if (lit) {
           var warm = rand();
-          g.fillStyle = warm < 0.75 ? '#ffd98a' : '#cfe4ff'; // ไฟหลอดอุ่น/ฟ้า
+          grd.addColorStop(0, warm < 0.75 ? '#ffe3a6' : '#d6e8ff');
+          grd.addColorStop(1, warm < 0.75 ? '#f0b95c' : '#9cc2ef');
         } else {
-          g.fillStyle = rand() < 0.5 ? '#31404f' : '#3c4d5e';
+          grd.addColorStop(0, '#4c6478');
+          grd.addColorStop(0.5, '#37495a');
+          grd.addColorStop(1, '#2a3844');
         }
-        g.fillRect(x * 16 + 3, y * 16 + 3, 10, 10);
+        g.fillStyle = grd;
+        g.fillRect(wx, wy, ww, wh);
+        if (!lit && rand() < 0.5) {
+          // แสงสะท้อนขาวเฉียง ๆ บนกระจก (เงาเมฆ/ตึกข้างกัน)
+          g.strokeStyle = 'rgba(255,255,255,0.16)';
+          g.lineWidth = 2;
+          g.beginPath();
+          g.moveTo(wx + 2, wy + wh - 2 - rand() * 4);
+          g.lineTo(wx + ww - 3, wy + 2);
+          g.stroke();
+        }
+        if (rand() < 0.18) {
+          // ผ้าม่านครึ่งบาน (สีอุ่นจาง ๆ)
+          g.fillStyle = 'rgba(224,205,170,0.55)';
+          g.fillRect(wx, wy, ww, wh * (0.4 + rand() * 0.3));
+        }
+        if (rand() < 0.13) {
+          // กล่องแอร์ติดหน้าต่าง
+          g.fillStyle = '#9aa4ac';
+          g.fillRect(wx + ww * 0.15, wy + wh - 5, ww * 0.4, 4.5);
+          g.fillStyle = 'rgba(0,0,0,0.3)';
+          g.fillRect(wx + ww * 0.15, wy + wh - 1.5, ww * 0.4, 1.5);
+        }
+        // กรอบหน้าต่างบาง ๆ (เส้นเข้มรอบกระจก)
+        g.strokeStyle = 'rgba(10,14,18,0.6)';
+        g.lineWidth = 1;
+        g.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wh - 1);
       }
     }
     var tex = new THREE.CanvasTexture(cv);
     tex.encoding = THREE.sRGBEncoding;
+    tex.anisotropy = 4;
     windowTexCache[key] = tex;
     return tex;
   }
 
   // ตัวหน้าต่างจริง (กล่องกระจกบาง) — กลางวันสะท้อนฟ้า/เงา ตอนกลางคืนเรืองแสงเหมือนไฟในตึก
-  // ใช้ PlaneGeometry ติดผิวอาคารแบบเดิม แต่เปลี่ยนวัสดุเป็น MeshStandardMaterial + envMap
+  // roughness ต่ำ + metalness สูง = สะท้อน envMap (ท้องฟ้า) ชัด เห็นประกายกระจกจริง
   function makeWindowMaterial(tex) {
     var m = new THREE.MeshStandardMaterial({
       map: tex,
       transparent: true,
-      opacity: 0.94,
-      roughness: 0.22,
-      metalness: 0.55,
-      envMapIntensity: 1.1,
+      opacity: 0.96,
+      roughness: 0.3,          // เดิม 0.14 — สูงเกินแล้ว facade กลายเป็นกระจกสะท้อนฟ้าขาวจ้า
+      metalness: 0.28,         // เดิม 0.72
+      envMapIntensity: 0.55,   // เดิม 1.45
       emissiveMap: tex,
       emissive: 0x000000,
       emissiveIntensity: 0,
@@ -765,7 +801,7 @@
     var group = new THREE.Group();
 
     // ตัวอาคาร — ผนังปูนฉาบ/อิฐสุ่มสีอ่อนจากสีโซน (ไม่ใช่สีแบน)
-    var wallColor = new THREE.Color(zone.color).lerp(new THREE.Color(0xe8e6e0), 0.72);
+    var wallColor = new THREE.Color(zone.color).lerp(new THREE.Color(0xe8e6e0), 0.58);
     var bodyMat = tintedPlaster(wallColor.getHex());
     bodyMat.roughness = 0.85;
     var body = new THREE.Mesh(new THREE.BoxGeometry(w, bh, d), bodyMat);
@@ -834,7 +870,7 @@
   function makeVariedBuilding(x, z, w, d, floors, zone, rand) {
     var kind = Math.floor(rand() * 4);
     var bh = floors * FLOOR_H;
-    var wallColor = new THREE.Color(zone.color).lerp(new THREE.Color(0xe8e6e0), 0.72);
+    var wallColor = new THREE.Color(zone.color).lerp(new THREE.Color(0xe8e6e0), 0.58);
     var bodyMat = tintedPlaster(wallColor.getHex());
     bodyMat.roughness = 0.85;
     if (kind === 0) {
@@ -928,6 +964,13 @@
     var LIMIT = GROUND_SIZE / 2 - 14;          // ขอบพื้นที่วางบล็อกได้
     var CLEAR = 8;                             // ระยะปลอดภัยจากขอบถนน
     function fit(v, size, roads) {
+      // ถ้าตำแหน่งเดิมไม่ชนถนนอยู่แล้ว → คงไว้เดิม (เดิมพลาด: ตัดสินจากตัวเลือกเสมอ
+      // ทำให้บล็อกที่ถูกที่ถูกที่ถูกโยนไปชิดขอบถนน)
+      var ok0 = true;
+      for (var q = 0; q < roads.length; q++) {
+        if (Math.abs(roads[q] - v) < CLEAR + size / 2) { ok0 = false; break; }
+      }
+      if (ok0) return { v: v, size: size };
       var lo = v - size / 2, hi = v + size / 2;
       var opts = [];
       for (var i = 0; i < roads.length; i++) {
@@ -1000,6 +1043,7 @@
   // ใช้ "เด็ค" สลับประเภทอาคาร → ทุกประเภทในโซนได้ลงบล็อกอย่างน้อยหลังเดียว (ไม่สุ่มข้าม)
   // และย่อสเกลอัตโนมัติให้ตัวอาคารพอดีบล็อก → อาคารใหญ่ (โรงพยาบาล/ห้าง/วัด) ไม่โดนตัดทิ้ง
   var CITY_TYPE_COUNTS = {};   // นับจำนวนที่วางสำเร็จแยกตามประเภท (ใช้ตรวจสอบ/ดีบัก)
+  var CITY_LABEL_INDEX = {};   // ตำแหน่งอาคารแต่ละประเภท (ใช้ตรวจสอบจาก console)
   function placeMakers(block, makers, count, minS, maxS, seed, boxes) {
     var rand = seededRandom(seed);
     // จุดวางมากกว่าจำนวนอาคาร (+6) — ประเภทที่พลาดจุดนึง ได้ลองจุดอื่นต่อ ไม่หล่นท้าย
@@ -1022,7 +1066,7 @@
     // ไม่ให้อาคารใหญ่กว่าช่องของมัน → วางได้เกือบทุกจุด เมืองแน่นทั้งบล็อก
     var cellFoot = Math.sqrt((block.w * block.d) / Math.max(1, count));
     var placed = 0, guard = 0;
-    while (placed < count && guard < count * 40 && pts.length) {
+    while (placed < count && guard < count * 60 && pts.length) {
       guard++;
       var p = pts.shift();
       if (!deck.length) refillDeck();
@@ -1076,6 +1120,31 @@
           continue;
         }
       }
+      // กันตายตัว: กล่องขอบเขตจริง (bbox) ต้องอยู่ในบล็อก (เผื่อขอบ 0.5 ม.)
+      // เลื่อนตาม bbox ไม่ใช่ตำแหน่ง origin — บางแบบมีชิ้นส่วนยื่นเกิน origin (สระ/ป้าย/ต้นไม้)
+      var bMinX = block.x - block.w / 2 + 0.5, bMaxX = block.x + block.w / 2 - 0.5;
+      var bMinZ = block.z - block.d / 2 + 0.5, bMaxZ = block.z + block.d / 2 - 0.5;
+      if (bb.max.x - bb.min.x > bMaxX - bMinX || bb.max.z - bb.min.z > bMaxZ - bMinZ) {
+        deck.unshift(key);
+        continue;   // อาคารกว้างกว่าบล็อก — ลองประเภท/จุดอื่น
+      }
+      var pushX = 0, pushZ = 0;
+      if (bb.max.x > bMaxX) pushX = bMaxX - bb.max.x;
+      if (bb.min.x + pushX < bMinX) pushX = bMinX - bb.min.x;
+      if (bb.max.z > bMaxZ) pushZ = bMaxZ - bb.max.z;
+      if (bb.min.z + pushZ < bMinZ) pushZ = bMinZ - bb.min.z;
+      if (pushX !== 0 || pushZ !== 0) {
+        var nx4 = x + pushX, nz4 = z + pushZ;
+        if (overlaps(boxes, nx4, nz4, bw, bd)) {
+          deck.unshift(key);
+          pts.push({ x: x, z: z, i: p.i + 0.6 });
+          pts.sort(function (a, b) { return a.i - b.i; });
+          continue;
+        }
+        x = nx4; z = nz4;
+        grp.position.set(x, 0, z);
+        bb = new THREE.Box3().setFromObject(grp);
+      }
       boxes.push({ x: x, z: z, w: bw, d: bd });
       landmarksGroup.add(grp);
       registerLandmark(grp, mk.label, mk.cat, block.zone);
@@ -1128,10 +1197,15 @@
         var cbb = new THREE.Box3().setFromObject(cgrp);
         var cw = cbb.max.x - cbb.min.x, cd = cbb.max.z - cbb.min.z;
         var cTry = 0, cPlaced = false;
+        // คลัสเตอร์ถูกจัดกึ่งกลางที่จุดวาง (origin ตรงกลางกล่อง) — เผื่อขอบกันชน 3 ม.
+        // และห้ามจุดวางที่ทำให้กล่องคลัสเตอร์ยื่นออกนอกบล็อก
+        var cHalfW = cw / 2 + 3, cHalfD = cd / 2 + 3;
+        var cMaxOffX = Math.max(0, block.w / 2 - cHalfW);
+        var cMaxOffZ = Math.max(0, block.d / 2 - cHalfD);
         while (cTry++ < 24 && !cPlaced) {
-          var cx2 = block.x + (seededRandom(bi * 97 + cTry)() - 0.5) * Math.max(2, block.w - cw - 6);
-          var cz2 = block.z + (seededRandom(bi * 131 + cTry)() - 0.5) * Math.max(2, block.d - cd - 6);
-          if (overlaps(boxes, cx2, cz2, cw, cd)) continue;
+          var cx2 = block.x + (seededRandom(bi * 97 + cTry)() - 0.5) * 2 * cMaxOffX;
+          var cz2 = block.z + (seededRandom(bi * 131 + cTry)() - 0.5) * 2 * cMaxOffZ;
+          if (overlaps(boxes, cx2, cz2, cw + 4, cd + 4)) continue;
           cgrp.position.set(cx2, 0, cz2);
           landmarksGroup.add(cgrp);
           var clName = { estate: 'หมู่บ้านจัดสรร', campus: 'กลุ่มอาคารเรียน', shophouses: 'ตึกแถวย่านการค้า', foodStreet: 'ย่านร้านอาหาร' }[CLUSTER_OF[block.zone]];
@@ -1149,11 +1223,15 @@
         var fpts = scatterPoints(block, filler, rand, 6);   // จุดกระจายทั่วบล็อก ไม่กระจุก
         var fRetry = 0;
         for (var j = 0; j < filler && fpts.length; j++) {
-          var bw = 10 + rand() * (block.w / 3.6);
-          var bd = 10 + rand() * (block.d / 3.6);
-          var floors = Math.round(zone.floors[0] + rand() * (zone.floors[1] - zone.floors[0]));
           var fp = fpts.shift();
           var fx = fp.x, fz = fp.z;
+          // ขนาดตึกเติมต้องอยู่ในบล็อกทั้งสองแกน (กันชน 1 ม. จากขอบบล็อก)
+          var hx = block.w / 2 - Math.abs(fx - block.x) - 1;
+          var hz = block.d / 2 - Math.abs(fz - block.z) - 1;
+          var bw = Math.min(10 + rand() * (block.w / 3.6), hx * 2);
+          var bd = Math.min(10 + rand() * (block.d / 3.6), hz * 2);
+          if (bw < 4 || bd < 4) continue;   // จุดนี้ชิดขอบเกิน — ข้าม
+          var floors = Math.round(zone.floors[0] + rand() * (zone.floors[1] - zone.floors[0]));
           if (overlaps(boxes, fx, fz, bw + 2, bd + 2)) {
             if (++fRetry > filler * 8) continue;   // กันลูปไม่รู้จบเมื่อบล็อกแน่นเกิน
             fpts.push(fp); j--;
@@ -1214,6 +1292,8 @@
     plantStreetProps();
     parkCarsAlongStreets();
     window.__cityTypeCounts = CITY_TYPE_COUNTS;   // hook ตรวจสอบจาก console
+    window.__cityGroups = { landmarks: landmarksGroup, buildings: buildingsGroup, props: propsGroup };
+    window.__cityLabelIndex = CITY_LABEL_INDEX;
   }
 
   // ================= ลานจอดรถ (มีรถจอดจริง) =================
@@ -1246,6 +1326,7 @@
   // ================= ของประดับริมถนน/สวน =================
   function makeBusStop(x, z, ry) {
     var g = new THREE.Group();
+    // หมายเหตุ: หลังคายาว 4 หน่วย (ศูนย์ x=1.7) — วางที่ระยะ ≥13 จากแกนถนนจึงไม่ยื่นเข้าเลน
     var m = CityMats.concrete;
     [0, 3.4].forEach(function (ox) {
       var p = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.6, 0.18), m);
@@ -1293,18 +1374,24 @@
 
   function plantStreetProps() {
     var rand = seededRandom(8181);
-    // ป้ายรถเมล์ริมถนนหลัก
-    makeBusStop(22, 11.2, 0);
-    makeBusStop(-22, -11.2, Math.PI);
-    makeBusStop(11.2, -60, Math.PI / 2);
-    makeBusStop(-11.2, 60, -Math.PI / 2);
+    // ป้ายรถเมล์ริมถนนหลัก (เดิมจุด (±22,±11.2) อยู่กลางทะเลสาบ → ย้ายขึ้นฝั่ง;
+    // ป้ายหันหน้าเข้าถนน: x น้อยกว่าแกนถนน = หันไปทาง +x)
+    makeBusStop(85.2, 40, 0);
+    makeBusStop(-85.2, -40, Math.PI);
+    makeBusStop(14.2, -56, Math.PI / 2);
+    makeBusStop(-14.2, 56, -Math.PI / 2);
     makeBusStop(101.2, 40, 0);
-    // ป้ายบิลบอร์ด
+    // ป้ายบิลบอร์ด (ยืนบนทางเท้า — ห้ามในทะเลสาบ ellipse 55x38 และไม่ยื่นเข้าเลน)
     var bbSpots = [
-      [-46, 11.8, 0], [46, -11.8, Math.PI], [11.8, -46, Math.PI / 2],
+      [-46, 30, 0], [46, -30, Math.PI], [11.8, -46, Math.PI / 2],
       [-11.8, 46, -Math.PI / 2],
       [100, 11.8, 0], [-100, -11.8, Math.PI], [11.8, 100, Math.PI / 2], [-11.8, -100, -Math.PI / 2],
     ];
+    // ปัดตำแหน่งให้ห่างแกนถนนอย่างน้อย 10.2 (ผิวถนน ±8 + คานป้าย 2)
+    bbSpots = bbSpots.map(function (p) {
+      function snap(v) { for (var i = 0; i < CITY_ROADS.length; i++) if (Math.abs(v - CITY_ROADS[i]) < 10.2) return CITY_ROADS[i] + (v >= CITY_ROADS[i] ? 10.4 : -10.4); return v; }
+      return [snap(p[0]), snap(p[1]), p[2]];
+    });
     bbSpots.forEach(function (p) {
       var bb = City.billboard(rand);
       bb.position.set(p[0], SIDEWALK_H, p[1]);
@@ -1313,12 +1400,12 @@
       registerLandmark(bb, 'ป้ายโฆษณา', 'โฆษณา', 'commerce');
       addBuildingLabel(bb, 'ป้ายโฆษณา', 'โฆษณา', null, null, 0);
     });
-    // ไฮดรันต์ + ถังขยะ เฉพาะแยกและริมทางเท้า
-    var corners = [[-62, -9], [62, 9], [-9, 62], [9, -62], [-81, 9], [81, -9], [-9, -81], [9, 81]];
+    // ไฮดรันต์ + ถังขยะ ริมทางเท้า (ถอยจากผิวถนน ±8 → ±9.5)
+    var corners = [[-60.5, -9.5], [60.5, 9.5], [-9.5, 60.5], [9.5, -60.5], [-80.5, 9.5], [80.5, -9.5], [-9.5, -80.5], [9.5, 80.5]];
     corners.forEach(function (c, i) {
       if (i % 2 === 0) makeHydrant(c[0], c[1]); else makeBin(c[0], c[1]);
     });
-    // หิน + พุ่มไม้รอบสวนกลางและริมทะเลสาบ (เลี่ยงถนน/บล็อกอาคาร)
+    // หิน + พุ่มไม้รอบสวนกลางและริมทะเลสาบ (เลี่ยงถนน/บล็อกอาคาร/ตัวน้ำ)
     function inAnyBlock(x, z) {
       var all = ZONE_BLOCKS.concat(INFILL_BLOCKS);
       for (var i = 0; i < all.length; i++) {
@@ -1333,6 +1420,7 @@
       var rx = Math.cos(a) * rr, rz = Math.sin(a) * rr * 1.15;
       if (Math.abs(rx) < 12 || Math.abs(rz) < 12) continue;
       if ((Math.abs(rx) > 60 && Math.abs(rx) < 80) || (Math.abs(rz) > 60 && Math.abs(rz) < 80)) continue;
+      if ((rx / 55) * (rx / 55) + (rz / 38) * (rz / 38) < 1.35) continue;   // ไม่ลงไปในทะเลสาบ
       if (inAnyBlock(rx, rz)) continue;
       if (rand() < 0.5) propsGroup.add(place(City.rock(0.6 + rand() * 0.7), rx, rz, rand));
       else propsGroup.add(place(City.bush(0.8 + rand() * 0.8, rand), rx, rz, rand));
@@ -1594,6 +1682,7 @@
       top = isFinite(b.max.y) ? b.max.y : 10;
     }
     bLabels.push({ grp: grp, x: grp.position.x, y: top + 7, z: grp.position.z, el: el, pri: p });
+    (CITY_LABEL_INDEX[label] = CITY_LABEL_INDEX[label] || []).push({ x: grp.position.x, z: grp.position.z });
   }
 
   // ================= ระบบป้ายชื่ออัตโนมัติ =================
@@ -1844,6 +1933,103 @@
     });
   }
 
+  // ================= คนเดินถนน (pedestrians) — เดินบนทางเท้า แกว่งขาแขน =================
+  var pedsGroup = new THREE.Group();
+  scene.add(pedsGroup);
+  window.__threeScene = scene;   // debug hook (ใช้ตรวจ pedestrian ใน headless test)
+
+  // วัสดุแชร์ (ไม่สร้างใหม่ต่อคน — ประหยัด draw call/material)
+  var pedSkinMats = [0xf1c9a5, 0xe0ac82, 0xc68e5f, 0x8d5a3a].map(function (c) {
+    return new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 });
+  });
+  var pedShirtMats = [0xd84343, 0x3f7fce, 0x4caf6e, 0xe8b23a, 0x9a5fbf, 0xe07a3f, 0x4a5a68, 0xd46a9a].map(function (c) {
+    return new THREE.MeshStandardMaterial({ color: c, roughness: 0.92 });
+  });
+  var pedPantsMats = [0x2a3140, 0x3a3f4a, 0x4a4038, 0x24282e].map(function (c) {
+    return new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 });
+  });
+
+  function makePedestrian(R) {
+    var grp = new THREE.Group();
+    var matSkin = pedSkinMats[Math.floor(R() * pedSkinMats.length)];
+    var matShirt = pedShirtMats[Math.floor(R() * pedShirtMats.length)];
+    var matPants = pedPantsMats[Math.floor(R() * pedPantsMats.length)];
+    // ขา 2 ข้าง (pivot ที่สะโพก — หมุนแกว่งได้เลย)
+    var legGeo = new THREE.BoxGeometry(0.16, 0.95, 0.2);
+    legGeo.translate(0, -0.475, 0);
+    var legL = new THREE.Mesh(legGeo, matPants); legL.position.set(-0.11, 0.95, 0);
+    var legR = new THREE.Mesh(legGeo.clone(), matPants); legR.position.set(0.11, 0.95, 0);
+    // ลำตัว + แขน (pivot ที่ไหล่)
+    var torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.62, 0.24), matShirt);
+    torso.position.y = 1.26;
+    var armGeo = new THREE.BoxGeometry(0.11, 0.55, 0.14);
+    armGeo.translate(0, -0.25, 0);
+    var armL = new THREE.Mesh(armGeo, matShirt); armL.position.set(-0.27, 1.5, 0);
+    var armR = new THREE.Mesh(armGeo.clone(), matShirt); armR.position.set(0.27, 1.5, 0);
+    // ศีรษะ
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), matSkin);
+    head.position.y = 1.78;
+    [legL, legR, torso, armL, armR, head].forEach(function (m) {
+      m.castShadow = true;
+      grp.add(m);
+    });
+    grp.userData.limbs = { legL: legL, legR: legR, armL: armL, armR: armR };
+    return grp;
+  }
+
+  var pedestrians = [];
+  var pedRand = seededRandom(4242);
+  var PED_SKIRT = 9.0;   // ระยะจากกลางถนน → กลางทางเท้า (ทางเท้ากว้าง 8–11.2 จากกลางถนน)
+  (function spawnPedestrians() {
+    for (var i = 0; i < 56; i++) {
+      var axis = pedRand() < 0.5 ? 'x' : 'z';
+      // ครึ่งหนึ่งอยู่ย่านใจกลางเมือง (ถนน -70/0/70, ช่วงใกล้กลางเมือง) ให้เห็นคนเดินชัด
+      // อีกครึ่งกระจายทั่วทุกถนน
+      var central = i < 28;
+      var roadPool = central ? [-70, 0, 70] : CITY_ROADS;
+      var road = roadPool[Math.floor(pedRand() * roadPool.length)];
+      var side = pedRand() < 0.5 ? PED_SKIRT : -PED_SKIRT;
+      // ถนนกลางเมือง (ตำแหน่ง 0) ข้ามทะเลสาบ — ให้เดินเฉพาะช่วงนอกทะเลสาบ (|t| > 62)
+      var min = central ? -180 : -300, max = central ? 180 : 300;
+      if (road === 0) {
+        if (pedRand() < 0.5) { min = central ? -180 : -300; max = -62; }
+        else { min = 62; max = central ? 180 : 300; }
+      }
+      var p = {
+        grp: makePedestrian(pedRand),
+        axis: axis, road: road, side: side,
+        min: min, max: max,
+        pos: min + pedRand() * (max - min),
+        dir: pedRand() < 0.5 ? 1 : -1,
+        speed: 1.1 + pedRand() * 1.2,
+        phase: pedRand() * Math.PI * 2,
+      };
+      pedsGroup.add(p.grp);
+      pedestrians.push(p);
+    }
+  })();
+
+  function updatePedestrians(dt) {
+    pedestrians.forEach(function (p) {
+      p.pos += p.speed * p.dir * dt;
+      // เดินถึงปลายช่วง → กลับทิศ (เดินไป-กลับ ไม่หายไปไหน)
+      if (p.pos > p.max) { p.pos = p.max; p.dir = -1; }
+      if (p.pos < p.min) { p.pos = p.min; p.dir = 1; }
+      if (p.axis === 'x') p.grp.position.set(p.pos, 0, p.road + p.side);
+      else p.grp.position.set(p.road + p.side, 0, p.pos);
+      // หันหน้าตามทิศเดิน (ตัวสร้างหันตามแกน Z เหมือนรถ)
+      var yaw = (p.axis === 'x' ? Math.PI / 2 : 0) + (p.dir > 0 ? 0 : Math.PI);
+      p.grp.rotation.y = yaw;
+      // แกว่งขา/แขนสลับกัน ตามความเร็วก้าว
+      p.phase += dt * p.speed * 3.6;
+      var s = Math.sin(p.phase) * 0.55;
+      p.grp.userData.limbs.legL.rotation.x = s;
+      p.grp.userData.limbs.legR.rotation.x = -s;
+      p.grp.userData.limbs.armL.rotation.x = -s * 0.8;
+      p.grp.userData.limbs.armR.rotation.x = s * 0.8;
+    });
+  }
+
   // ================= เครื่องบินเหนือเมือง =================
   var planeGroup = new THREE.Group();
   scene.add(planeGroup);
@@ -1934,7 +2120,7 @@
 
   // ================= โหมดแสง =================
   var LIGHT_MODES = {
-    day:    { sky: 0x8fc7ee, dome: 0xffffff, fog: [0xbfd9ea, 600, 2200], sunColor: 0xfff4e0, sunI: 1.15, ambI: 0.55, hemiI: 0.6,  sunPos: [200, 300, 140],   lamps: false, windowEmissive: false, starO: 0,    cloudO: 0.9 },
+    day:    { sky: 0x8fc7ee, dome: 0xffffff, fog: [0xbfd9ea, 600, 2200], sunColor: 0xfff4e0, sunI: 1.0, ambI: 0.38, hemiI: 0.38,  sunPos: [200, 300, 140],   lamps: false, windowEmissive: false, starO: 0,    cloudO: 0.9 },
     sunset: { sky: 0xe8956a, dome: 0xffd9b0, fog: [0xd98a5f, 520, 2000], sunColor: 0xffb066, sunI: 0.75, ambI: 0.4,  hemiI: 0.35, sunPos: [340, 80, -160],   lamps: true,  windowEmissive: true,  starO: 0.35, cloudO: 0.7 },
     night:  { sky: 0x0b1020, dome: 0x24304e, fog: [0x0b1020, 480, 1800], sunColor: 0x8fb0ff, sunI: 0.14, ambI: 0.16, hemiI: 0.1,  sunPos: [-160, 220, -120], lamps: true,  windowEmissive: true,  starO: 0.9,  cloudO: 0.12, night: 1 },
   };
@@ -2261,6 +2447,7 @@
     requestAnimationFrame(animate);
     var dt = Math.min(clock.getDelta(), 0.05);
     updateCars(dt);
+    updatePedestrians(dt);
     updateTrain(dt);
     updatePlane(dt);
     updateHeli(dt);

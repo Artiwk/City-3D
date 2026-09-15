@@ -105,6 +105,26 @@
     return tintCache[key];
   }
 
+  // ปรับ UV ของกล่องให้เท็กซ์เจอร์ซ้ำตามขนาดจริง (เมตร) — อิฐ/สังกะสี/กระเบื้อง
+  // ไม่ถูกยืดตามขนาดกล่องอีกต่อไป ทุกกล่องได้เนื้อวัสดุขนาดสมจริงเหมือนกัน
+  var UV_TILE = 4;   // 1 รอบเท็กซ์เจอร์ = 4 เมตร (อิฐกว้าง ~0.65 ม. สมจริง)
+  City.scaleBoxUVs = scaleBoxUVs;  // ปรับ UV ตามขนาดจริง (ใช้ใน main.js ด้วย)
+  City.UV_TILE = UV_TILE;
+  function scaleBoxUVs(geo, w, h, d) {
+    var uv = geo.attributes.uv;
+    if (!uv) return;
+    // หน้ากล่องตามลำดับ: +x -x +y -y +z -z (4 จุดต่อหน้า)
+    var dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+    for (var f = 0; f < 6; f++) {
+      var du = dims[f][0] / UV_TILE, dv = dims[f][1] / UV_TILE;
+      for (var v = 0; v < 4; v++) {
+        var i = f * 4 + v;
+        uv.setXY(i, uv.getX(i) * du, uv.getY(i) * dv);
+      }
+    }
+    uv.needsUpdate = true;
+  }
+
   var box = function (w, h, d, c, o) {
     o = o || {};
     var mat;
@@ -119,7 +139,9 @@
     else if (c === 'solar') mat = solarMat;
     else if (typeof c === 'number') mat = tintMat(c, o.rough, o.metal);
     else mat = plasterMat;
-    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    var geo = new THREE.BoxGeometry(w, h, d);
+    if (mat.map) scaleBoxUVs(geo, w, h, d);   // เท็กซ์เจอร์จริงเท่านั้น — สีล้วนไม่ต้อง
+    var m = new THREE.Mesh(geo, mat);
     if (o.x) m.position.x = o.x;
     m.position.y = (o.y || 0) + h / 2;
     if (o.z) m.position.z = o.z;
@@ -723,12 +745,11 @@
   def('resort', 'รีสอร์ต', 'บริการ', 5, function (R) {
     var g = new THREE.Group();
     for (var i = 0; i < 4; i++) {
-      var v = box(4.5, 2.8, 3.6, 0xf0e0c0);
-      v.position.set(-5.5 + (i % 2) * 11, 0, -2.5 + Math.floor(i / 2) * 6.5);
+      var vx = -5.5 + (i % 2) * 11, vz = -2.5 + Math.floor(i / 2) * 6.5;
+      var v = box(4.5, 2.8, 3.6, 0xf0e0c0, { x: vx, z: vz });   // ตัวบ้านพัก (box วางพื้นให้เอง)
       v.rotation.y = (i % 2) * 0.12;
       g.add(v);
-      var roof = box(5, 0.3, 4.1, 0x7a5230, { x: -5.5 + (i % 2) * 11, y: 2.8, z: -2.5 + Math.floor(i / 2) * 6.5 });
-      g.add(roof);
+      g.add(box(5, 0.3, 4.1, 0x7a5230, { x: vx, y: 2.8, z: vz }));
     }
     var pool = box(6, 0.4, 4, 0x4fc3f7, { y: 0.05, x: 0, z: 1 });
     pool.material = new THREE.MeshStandardMaterial({ color: 0x4fc3f7, roughness: 0.15, metalness: 0.1 });
@@ -1208,8 +1229,7 @@
     g.add(box(9.6, 0.4, 5.6, 0xc9a86a, { y: 5.7 }));
     g.add(signBoard(3.6, 0.55, 'วัด', '#d4af37', '#5d4037').translateY(6.4));
     // เจดีย์ทรงไทย
-    var chediBase = box(3.2, 2.4, 3.2, 0xf0e6c8, { x: 0, y: 0, z: 0 });
-    chediBase.position.set(8, 0, 0);
+    var chediBase = box(3.2, 2.4, 3.2, 0xf0e6c8, { x: 8, z: 0 });   // ฐานเจดีย์ (box วางพื้นให้เอง)
     g.add(chediBase);
     g.add(new THREE.Mesh(new THREE.ConeGeometry(2, 6, 12), goldMat));      // ยอดเจดีย์ทองเปลว
     g.children[g.children.length - 1].position.set(8, 5.4, 0);
