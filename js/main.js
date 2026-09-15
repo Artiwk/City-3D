@@ -1559,14 +1559,48 @@
         railHalf.add(gd);
       });
     });
-    // ทางลาดขึ้น-ลงปลายสาย (จบลงบนพื้นภายในขอบพื้นเมือง ±250)
+    // ทางลาดขึ้น-ลงปลายสาย — ผิวบนต่อเนื่องจากดาดรางพอดี มีหินโรยทาง/รางเหล็ก/ราวกั้น/เสาค้ำตามลาด
+    // ปลายในแตะขอบดาด (z=±240) ปลายนอกจบระดับพื้นก่อนถนนรอบนอก (±272)
     [[-1, -end], [1, end]].forEach(function (e) {
-      var rampLen = 30;
-      var ramp = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.1, rampLen), matDeck);
-      ramp.position.set(RAIL_X, RAIL_Y / 2 + 0.4, e[1] + e[0] * (rampLen / 2 + 2));
-      ramp.rotation.x = e[0] * Math.atan(RAIL_Y / rampLen);
+      var run = 28;                              // ระยะระดับของลาด (จบที่ z≈±268 ไม่ทับถนนรอบนอก ±280)
+      var surf = RAIL_Y + 1.1;                   // ระดับผิวบนดาดราง
+      var theta = Math.atan(surf / run);         // มุมลาด
+      var L = Math.sqrt(run * run + surf * surf);
+      var cz = e[1] + e[0] * run / 2;            // ศูนย์กล่องลาด (ปลายในชนขอบดาดพอดี)
+      var cy = surf / 2 - 0.55 / Math.cos(theta);
+      var ramp = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.1, L), matDeck);
+      ramp.position.set(RAIL_X, cy, cz);
+      ramp.rotation.x = e[0] * theta;
       ramp.castShadow = true;
+      ramp.receiveShadow = true;
       railHalf.add(ramp);
+      var ball = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.2, L), matBallast);
+      ball.position.set(RAIL_X, cy + 0.65 / Math.cos(theta), cz);
+      ball.rotation.x = e[0] * theta;
+      ball.receiveShadow = true;
+      railHalf.add(ball);
+      [-1.2, 1.2].forEach(function (rx) {
+        var rl = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, L), matRail);
+        rl.position.set(RAIL_X + rx, cy + 0.84 / Math.cos(theta), cz);
+        rl.rotation.x = e[0] * theta;
+        railHalf.add(rl);
+      });
+      [-3.15, 3.15].forEach(function (gx) {
+        var gd = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.05, L), matRail);
+        gd.position.set(RAIL_X + gx, cy + 1.15 / Math.cos(theta), cz);
+        gd.rotation.x = e[0] * theta;
+        gd.castShadow = true;
+        railHalf.add(gd);
+      });
+      // เสาค้ำใต้ลาด 2 ต้น (หัวเสาซ่อนใต้พื้นลาดพอดี)
+      [0.35, 0.72].forEach(function (f) {
+        var pz = e[1] + e[0] * run * f;
+        var h = Math.max(0.7, surf * (1 - f) - 1.1 / Math.cos(theta) + 0.15);
+        var p2 = new THREE.Mesh(new THREE.BoxGeometry(1.4, h, 1.4), matPier);
+        p2.position.set(RAIL_X, h / 2, pz);
+        p2.castShadow = true;
+        railHalf.add(p2);
+      });
     });
     transportGroup.add(railHalf);
   }
@@ -1590,7 +1624,7 @@
       var win = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.8, 7.4), winMat);
       win.position.y = 2.1;
       b.add(win);
-      b.position.set(RAIL_X, RAIL_Y + 1.45, -190 + i * 8.6);
+      b.position.set(RAIL_X, RAIL_Y + 0.95, -190 + i * 8.6);   // ท้องขบวนแนบหินโรยทาง (เดิมลอยเหนือราง 0.55 ม.)
       trainGroup.add(b);
       trainCars.push(b);
     }

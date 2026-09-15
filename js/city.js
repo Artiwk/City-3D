@@ -1844,22 +1844,26 @@
     var railC = 0xb0bec5;     // สีราวสะพาน
     var pierC = 0x8d9ca8;     // สีเสาตอม่อ
     var deckTop = City.bridgeLevel || 4.5;   // ระดับดาดฟ้า (ต่างระดับตามสะพาน)
-    var rampLen = deckTop >= 8 ? 40 : 30;    // ทางลาดยาวขึ้นตามความสูงสะพาน (สูง→ชันน้อยลง)
-    var rampC = 41 + rampLen / 2;            // ศูนย์กลางทางลาด (ดาดฟ้ายาว 82 → ขอบที่ 41)
-    var rampEnd = 41 + rampLen;              // ปลายทางลาดถึงพื้นถนน
-    var theta = Math.atan(deckTop / rampLen); // มุมทางลาด
-    var rampY = deckTop / 2 - 0.25 / Math.cos(theta) - 0.25;   // จุดกึ่งกลางทางลาด
-    var railY = deckTop / 2 + 0.05;          // ราวตามทางลาด (สูงกว่าพื้นผิว 0.6)
+    var deckSurf = deckTop - 0.25;           // ระดับผิวดาดฟ้า (กล่องดาดหนา 0.5 จับกึ่งกลาง)
+    var run = deckTop >= 8 ? 40 : 30;        // ระยะระดับของทางลาด (ตามแนวราบ)
+    var rise = deckSurf;                     // ลาดลงจากผิวดาดฟ้าถึงพื้นถนน (0)
+    var theta = Math.atan(rise / run);       // มุมทางลาด
+    var L = Math.sqrt(run * run + rise * rise);   // ความยาวกล่องตามลาด (ชดเชยการหดของโปรเจกชัน)
+    var rampC = 41 + run / 2;                // ศูนย์กลางทางลาด (ปลายในแตะขอบดาดฟ้า z=41 พอดี)
+    var rampY = rise / 2 - 0.25 / Math.cos(theta);   // กึ่งกลางกล่องลาด (ผิวบนต่อผิวดาดฟ้าไม่มีขั้น)
+    var railY = rise / 2 + 0.55 / Math.cos(theta);   // ราวตามลาด (ก้นราวแตะผิวลาด)
     var pierH = deckTop - 0.2;               // เสาสูงถึงใต้ดาดฟ้า
     var capY = deckTop - 0.6;                // หัวเสา
 
     // ---- ดาดฟ้าสะพานยกระดับ (ช่วงข้ามทะเลสาบ) ----
     g.add(box(16, 0.5, 82, deckC, { y: deckTop - 0.5 }));
-    g.add(box(0.15, 0.08, 82, 0xfff3d6, { y: deckTop + 0.02 }));  // เส้นเลน
+    g.add(box(0.15, 0.08, 82, 0xfff3d6, { y: deckTop - 0.26 }));  // เส้นเลน (แนบผิวดาดฟ้า)
 
-    // ---- ทางลาดขึ้น-ลงสองฝั่ง (ค่อย ๆ สูงขึ้นจากพื้นถนน) ----
-    g.add(box(16, 0.5, rampLen, deckC, { y: rampY, z: rampC, rx: theta }));
-    g.add(box(16, 0.5, rampLen, deckC, { y: rampY, z: -rampC, rx: -theta }));
+    // ---- ทางลาดขึ้น-ลงสองฝั่ง (ผิวบนต่อเนื่องจากดาดฟ้า จบระดับพื้นถนนพอดี) ----
+    g.add(box(16, 0.5, L, deckC, { y: rampY, z: rampC, rx: theta }));
+    g.add(box(16, 0.5, L, deckC, { y: rampY, z: -rampC, rx: -theta }));
+    g.add(box(0.15, 0.08, L, 0xfff3d6, { y: rise / 2 + 0.04 / Math.cos(theta), z: rampC, rx: theta }));   // เส้นเลนตามลาด
+    g.add(box(0.15, 0.08, L, 0xfff3d6, { y: rise / 2 + 0.04 / Math.cos(theta), z: -rampC, rx: -theta }));
 
     // ---- เสาตอม่อในน้ำ + หัวเสา (ถอยห่างจากจุดตัดกลาง เพื่อไม่เบียดกัน) ----
     [-34, -14, 14, 34].forEach(function (pz) {
@@ -1867,22 +1871,22 @@
       g.add(box(2.3, 0.5, 2.3, 0x9aa7b0, { y: capY, z: pz }));
     });
 
-    // ---- เสาค้ำทางลาดขึ้น-ลง (ช่วงข้ามน้ำ/ช่วงลอยสูง) ----
+    // ---- เสาค้ำทางลาดขึ้น-ลง (หัวเสาซ่อนใต้ผิวลาดพอดี) ----
     [0.42, 0.74].forEach(function (f) {
-      var pz = 41 + rampLen * f;
-      var h = Math.max(0.7, deckTop * (rampEnd - pz) / rampLen - 0.35);
+      var pz = 41 + run * f;
+      var h = Math.max(0.7, rise * (1 - f) - 0.45);
       g.add(box(0.8, h, 0.8, pierC, { y: 0, z: pz }));
       g.add(box(0.8, h, 0.8, pierC, { y: 0, z: -pz }));
     });
 
     // ---- ราวสะพาน (ดาดฟ้า + ตามทางลาด) ----
     for (var s = -1; s <= 1; s += 2) {
-      g.add(box(0.15, 1.1, 84, railC, { x: s * 7.6, y: deckTop + 0.05 }));
+      g.add(box(0.15, 1.1, 82, railC, { x: s * 7.6, y: deckTop - 0.25 }));   // ราวดาดฟ้า (แนบผิว จบที่ขอบ z=41)
       for (var p = -3; p <= 3; p++) {
-        g.add(box(0.15, 1.1, 0.15, railC, { x: s * 7.6, y: deckTop + 0.05, z: p * 12 }));
+        g.add(box(0.15, 1.1, 0.15, railC, { x: s * 7.6, y: deckTop - 0.25, z: p * 12 }));
       }
-      g.add(box(0.15, 1.1, rampLen, railC, { x: s * 7.6, y: railY, z: rampC, rx: theta }));
-      g.add(box(0.15, 1.1, rampLen, railC, { x: s * 7.6, y: railY, z: -rampC, rx: -theta }));
+      g.add(box(0.15, 1.1, L, railC, { x: s * 7.6, y: railY, z: rampC, rx: theta }));
+      g.add(box(0.15, 1.1, L, railC, { x: s * 7.6, y: railY, z: -rampC, rx: -theta }));
     }
     return g;
   });
