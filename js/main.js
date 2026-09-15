@@ -51,8 +51,18 @@
     { zone: 'tourism',     x:  -36, z:  -42, w:  50, d:  26 },
     { zone: 'food',        x:  -36, z:   42, w:  50, d:  26 },
     { zone: 'business',    x:   34, z:   40, w:  48, d:  20 },
-    { zone: 'health',      x:   34, z:   95, w:  48, d:  32 },
-    { zone: 'everyday',    x:  -34, z:   95, w:  48, d:  32 },
+    { zone: 'health',      x:   34, z:   96, w:  50, d:  54 },   // เต็มช่องชานเมืองตะวันออก
+    { zone: 'everyday',    x:  -34, z:   96, w:  50, d:  54 },   // เต็มช่องชานเมืองตะวันตก
+    // === แถวเหนือ (z=-190) เติมให้เต็มทั้งแถว ===
+    { zone: 'sports',      x:  -34, z: -190, w:  50, d:  54 },
+    { zone: 'culture',     x:   34, z: -190, w:  50, d:  54 },
+    { zone: 'business',    x:  -34, z:  -36, w:  50, d:  54 },   // ธุรกิจเสริมแยกกลางฝั่งตะวันตก
+    { zone: 'tourism',     x:  -34, z:   42, w:  50, d:  26 },   // โรงแรมริมทะเลสาบฝั่งเหนือ
+    // === แถวใต้ (z=190) เติมให้เต็มทั้งแถว ===
+    { zone: 'res',         x:  -34, z:  190, w:  50, d:  54 },
+    { zone: 'food',        x:   34, z:  190, w:  50, d:  54 },
+    { zone: 'religion',    x:  -34, z: -190, w:  50, d:  54 },
+    { zone: 'agriculture', x:   34, z:  190, w:  50, d:  54 },
   ];
 
   // บล็อกเติมช่องว่าง (ทำให้เมืองแน่นขึ้น ไม่โล่ง)
@@ -73,7 +83,13 @@
     { zone: 'safety',   x: -190, z: -108, w: 80, d: 48 },
     { zone: 'tourism',  x:  190, z: -108, w: 80, d: 48 },
     { zone: 'commerce', x:  190, z:  108, w: 80, d: 48 },
-    { zone: 'everyday', x: -190, z:  108, w: 80, d: 48 }
+    { zone: 'everyday', x: -190, z:  108, w: 80, d: 48 },
+    // === แถวเหนือ z=-190 ของย่านชั้นนอก ===
+    { zone: 'commerce', x:  190, z: -190, w: 80, d: 52 },
+    { zone: 'industry', x: -190, z: -190, w: 80, d: 52 },
+    // === แถวใต้ z=190 ของย่านชั้นนอก ===
+    { zone: 'everyday', x:  190, z:  190, w: 80, d: 52 },
+    { zone: 'tourism',  x: -190, z:  190, w: 80, d: 52 }
   );
 
   // สิ่งปลูกสร้างจำลองต่อโซน (จาก City.makers ใน city.js)
@@ -101,6 +117,11 @@
     res: 20, edu: 15, health: 12, safety: 10, commerce: 26, food: 16, business: 11,
     sports: 9, culture: 11, religion: 7, industry: 8, utility: 8, agriculture: 8,
     tourism: 11, everyday: 12,
+  };
+  // บล็อกใหม่บางส่วนเล็กกว่าบล็อกเดิม — กำหนดจำนวนสิ่งปลูกสร้างเฉพาะหลัง
+  var BLOCK_COUNT_OVERRIDES = {
+    '-34,-190': 6, '34,-190': 6, '-34,-36': 9, '-34,42': 4, '-34,190': 10,
+    '34,190': 12, '-34,-190': 6, '34,190': 10,
   };
 
   // โซนชานเมือง/เกษตรไม่ต้องมีขอบทางเท้ารอบบล็อก
@@ -332,23 +353,25 @@
       }
     });
 
-    // แถวนาข้าว NE (วาดเฉพาะในบล็อก 52x52)
+    // แถวนาข้าว — วาดในทุกบล็อกโซนเกษตร (สีเขียวเหลืองเป็นแถวมีคันนา)
     (function riceRows() {
-      var b = { x: 105, z: -105, w: 52, d: 52 };
-      var cx = (b.x + GROUND_SIZE / 2) * px, cy = (b.z + GROUND_SIZE / 2) * px;
-      for (var ry = 0; ry < 10; ry++) {
-        g.fillStyle = ry % 2 ? 'rgba(150,180,80,0.5)' : 'rgba(120,160,60,0.5)';
-        g.fillRect(cx - b.w / 2 * px, cy - b.d / 2 * px + ry * (b.d / 10) * px, b.w * px, (b.d / 10) * px - 2);
-      }
-      // คันนาสีน้ำตาล
-      g.strokeStyle = 'rgba(120,96,60,0.8)';
-      g.lineWidth = 3;
-      for (var k = 0; k <= 3; k++) {
-        g.beginPath();
-        g.moveTo(cx - b.w / 2 * px, cy - b.d / 2 * px + k * (b.d / 3) * px);
-        g.lineTo(cx + b.w / 2 * px, cy - b.d / 2 * px + k * (b.d / 3) * px);
-        g.stroke();
-      }
+      ZONE_BLOCKS.forEach(function (b) {
+        if (b.zone !== 'agriculture') return;
+        var cx = (b.x + GROUND_SIZE / 2) * px, cy = (b.z + GROUND_SIZE / 2) * px;
+        for (var ry = 0; ry < 10; ry++) {
+          g.fillStyle = ry % 2 ? 'rgba(150,180,80,0.5)' : 'rgba(120,160,60,0.5)';
+          g.fillRect(cx - b.w / 2 * px, cy - b.d / 2 * px + ry * (b.d / 10) * px, b.w * px, (b.d / 10) * px - 2);
+        }
+        // คันนาสีน้ำตาล
+        g.strokeStyle = 'rgba(120,96,60,0.8)';
+        g.lineWidth = 3;
+        for (var k = 0; k <= 3; k++) {
+          g.beginPath();
+          g.moveTo(cx - b.w / 2 * px, cy - b.d / 2 * px + k * (b.d / 3) * px);
+          g.lineTo(cx + b.w / 2 * px, cy - b.d / 2 * px + k * (b.d / 3) * px);
+          g.stroke();
+        }
+      });
     })();
 
     // ===== ถนน: ทางเท้า + ผิวถนน + เส้นเลน =====
@@ -974,42 +997,90 @@
   }
 
   // วางสิ่งปลูกสร้างจาก City.makers ลงในบล็อกโซน (กระจายทั่วบล็อก + หลีกเลี่ยงการทับซ้อน)
+  // ใช้ "เด็ค" สลับประเภทอาคาร → ทุกประเภทในโซนได้ลงบล็อกอย่างน้อยหลังเดียว (ไม่สุ่มข้าม)
+  // และย่อสเกลอัตโนมัติให้ตัวอาคารพอดีบล็อก → อาคารใหญ่ (โรงพยาบาล/ห้าง/วัด) ไม่โดนตัดทิ้ง
+  var CITY_TYPE_COUNTS = {};   // นับจำนวนที่วางสำเร็จแยกตามประเภท (ใช้ตรวจสอบ/ดีบัก)
   function placeMakers(block, makers, count, minS, maxS, seed, boxes) {
     var rand = seededRandom(seed);
-    var pts = ringOrder(scatterPoints(block, count, rand), block);
+    // จุดวางมากกว่าจำนวนอาคาร (+6) — ประเภทที่พลาดจุดนึง ได้ลองจุดอื่นต่อ ไม่หล่นท้าย
+    var pts = ringOrder(scatterPoints(block, count + 6, rand), block);
+    var deck = [];
+    function refillDeck() {
+      deck = makers.slice();
+      for (var i = deck.length - 1; i > 0; i--) {
+        var j = Math.floor(rand() * (i + 1));
+        var tmp = deck[i]; deck[i] = deck[j]; deck[j] = tmp;
+      }
+      // จัดการ์ดตัวใหญ่ (สูง/กว้าง) ไว้โดนเด็คด้านหลัง = จับก่อน
+      // → อาคารใหญ่ได้จุดกลางบล็อก (จุดวางเรียงจากกลางออกไป) ตัวเล็กเติมขอบ
+      deck.sort(function (a, b) {
+        return (City.makers[a].height || 0) - (City.makers[b].height || 0);
+      });
+    }
+    refillDeck();
+    // ขนาดช่องเฉลี่ยต่ออาคาร (รากที่สองของ พื้นที่บล็อก/จำนวน) — ใช้จำกัดสเกล
+    // ไม่ให้อาคารใหญ่กว่าช่องของมัน → วางได้เกือบทุกจุด เมืองแน่นทั้งบล็อก
+    var cellFoot = Math.sqrt((block.w * block.d) / Math.max(1, count));
     var placed = 0, guard = 0;
-    while (placed < count && guard < count * 20 && pts.length) {
+    while (placed < count && guard < count * 40 && pts.length) {
       guard++;
       var p = pts.shift();
-      var key = makers[Math.floor(rand() * makers.length)];
+      if (!deck.length) refillDeck();
+      var key = deck.pop();
       var mk = City.makers[key];
       if (!mk) continue;
-      var s = minS + rand() * (maxS - minS);
       var grp = mk.build(rand);
       grp.rotation.y = rand() * Math.PI;   // หันสุ่มทุกทิศ — หมู่อาคารไม่เรียงตัวเป็นตาราง
-      // อาคารใหญ่ขึ้นกว่าเดิมชัดเจน: ตัวโครงกว้างขึ้น ~1.85x และสูงขึ้น ~3x เห็นเด่นจากระยะไกล
-      grp.scale.set(s * 1.85, s * 3, s * 1.85);
+      // วัดเท้าอาคารก่อนสเกล (หลังหมุน) เพื่อคำนวณสเกลที่พอดีบล็อก
+      var foot = new THREE.Box3().setFromObject(grp);
+      var fw = Math.max(1, foot.max.x - foot.min.x);
+      var fd = Math.max(1, foot.max.z - foot.min.z);
+      var s = minS + rand() * (maxS - minS);
+      // สเกลเข้ากับจุดที่วาง: เท้าต้องอยู่ในบล็อกทั้งสองแกน (เว้นขอบกันชน 1 ม.)
+      // ไม่เกิน ~42% ของบล็อก และไม่เกิน ~1.7 เท่าของช่องเฉลี่ยต่ออาคาร
+      // → อาคารใหญ่ (โรงพยาบาล/ห้าง/วัด) ไม่โดนตัดทิ้ง และแทบไม่มีการทับซ้อน
+      var hx = block.w / 2 - Math.abs(p.x - block.x);
+      var hz = block.d / 2 - Math.abs(p.z - block.z);
+      var fit = Math.min(s * 1.85, (block.w * 0.42) / fw, (block.d * 0.42) / fd,
+                         Math.max(0.1, 2 * hx - 2) / fw, Math.max(0.1, 2 * hz - 2) / fd,
+                         Math.max(0.9, (1.7 * cellFoot) / (fw + fd)));
+      // หมายเหตุ: คาปช่องเฉลี่ยเป็นเป้า soft — อาคารใหญ่พิเศษ (มหาวิทยาลัย/สำนักงาน/
+      // โรงหนัง/มัสยิด) ย่อได้ถึง 0.9 เพื่อให้ลงบล็อกได้จริง ขอบเขตบล็อกยังกันตายตัวอยู่
+      if (fit < 0.5) {   // จุดนี้แคบเกินสำหรับอาคารนี้ — คืนประเภทลงเด็ค ลองจุดอื่น
+        deck.unshift(key);
+        pts.push({ x: p.x, z: p.z, i: p.i + 0.7 });
+        pts.sort(function (a, b) { return a.i - b.i; });
+        continue;
+      }
+      grp.scale.set(fit, fit * (3 / 1.85), fit);
       var x = p.x, z = p.z;
       grp.position.set(x, 0, z);
       // คำนวณขอบจริงของอาคาร (รวมสเกล+หมุน) เพื่อกันทับซ้อน
       var bb = new THREE.Box3().setFromObject(grp);
-      var bw = bb.max.x - bb.min.x + 2;
-      var bd = bb.max.z - bb.min.z + 2;
-      if (x - bw / 2 < block.x - block.w / 2 || x + bw / 2 > block.x + block.w / 2 ||
-          z - bd / 2 < block.z - block.d / 2 || z + bd / 2 > block.z + block.d / 2) {
-        pts.push({ x: x, z: z, i: p.i });          // เก็บจุดไว้ลองกับอาคารลำดับถัดๆ ไปอีกครั้ง
-        pts.sort(function (a, b) { return a.i - b.i; });
-        continue;
-      }
+      var bw = bb.max.x - bb.min.x + 1;
+      var bd = bb.max.z - bb.min.z + 1;
       if (overlaps(boxes, x, z, bw, bd)) {
-        pts.push({ x: x, z: z, i: p.i + 0.5 });    // จุดเดิมลองใหม่หลังจุดอื่น กันลูปจุดเดิม
-        pts.sort(function (a, b) { return a.i - b.i; });
-        continue;
+        // ทับของเดิม: ลองย่อลงเรื่อย ๆ ก่อนยอมแพ้ (อาคารใหญ่ได้ลงจุดที่เหลืออยู่)
+        var shrunk = false;
+        for (var sc = 0.85; sc >= 0.4; sc -= 0.15) {
+          grp.scale.set(fit * sc, fit * sc * (3 / 1.85), fit * sc);
+          bb = new THREE.Box3().setFromObject(grp);
+          bw = bb.max.x - bb.min.x + 1;
+          bd = bb.max.z - bb.min.z + 1;
+          if (!overlaps(boxes, x, z, bw, bd)) { shrunk = true; break; }
+        }
+        if (!shrunk) {
+          deck.unshift(key);                        // คืนประเภทนี้กลับเด็ค — มีโอกาสลงจุดอื่น
+          pts.push({ x: x, z: z, i: p.i + 0.5 });   // จุดเดิมลองใหม่หลังจุดอื่น กันลูปจุดเดิม
+          pts.sort(function (a, b) { return a.i - b.i; });
+          continue;
+        }
       }
       boxes.push({ x: x, z: z, w: bw, d: bd });
       landmarksGroup.add(grp);
       registerLandmark(grp, mk.label, mk.cat, block.zone);
       addBuildingLabel(grp, mk.label, mk.cat, bb.max.y + 7, null, 2);   // อาคารชื่อเฉพาะ
+      CITY_TYPE_COUNTS[mk.label] = (CITY_TYPE_COUNTS[mk.label] || 0) + 1;
       placed++;
     }
   }
@@ -1034,7 +1105,7 @@
     allBlocks.forEach(function (block, bi) {
       var zone = zoneById(block.zone);
       var makers = ZONE_MAKERS[block.zone];
-      var count = ZONE_COUNTS[block.zone] || 4;
+      var count = BLOCK_COUNT_OVERRIDES[block.x + ',' + block.z] || ZONE_COUNTS[block.zone] || 4;
       var boxes = [];   // พื้นที่ที่วางของไปแล้ว ใช้กันทับซ้อน
 
       if (makers) {
@@ -1057,7 +1128,7 @@
         var cbb = new THREE.Box3().setFromObject(cgrp);
         var cw = cbb.max.x - cbb.min.x, cd = cbb.max.z - cbb.min.z;
         var cTry = 0, cPlaced = false;
-        while (cTry++ < 16 && !cPlaced) {
+        while (cTry++ < 24 && !cPlaced) {
           var cx2 = block.x + (seededRandom(bi * 97 + cTry)() - 0.5) * Math.max(2, block.w - cw - 6);
           var cz2 = block.z + (seededRandom(bi * 131 + cTry)() - 0.5) * Math.max(2, block.d - cd - 6);
           if (overlaps(boxes, cx2, cz2, cw, cd)) continue;
@@ -1142,13 +1213,15 @@
     buildParkingLots();
     plantStreetProps();
     parkCarsAlongStreets();
+    window.__cityTypeCounts = CITY_TYPE_COUNTS;   // hook ตรวจสอบจาก console
   }
 
   // ================= ลานจอดรถ (มีรถจอดจริง) =================
   function buildParkingLots() {
     var lots = [
-      { x: 50, z: 88, w: 20, d: 14 },
-      { x: -50, z: -88, w: 20, d: 14 },
+      { x: 104, z: 45, w: 18, d: 12 },    // ริมสวนสาธารณะกลางเมือง
+      { x: -104, z: -45, w: 18, d: 12 },
+      { x: 105, z: 156, w: 18, d: 12 },   // ช่องระหว่างถนน 140/240 ฝั่งใต้
     ];
     var rand = seededRandom(31337);
     lots.forEach(function (lot) {
